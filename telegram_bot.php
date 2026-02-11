@@ -165,7 +165,7 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
         );
 
         // Retry logic for risk_threshold and amount errors
-        if ((strpos($Xebe, 'risk_threshold') || strpos($Xebe, 'Amount must be greater than zero') || strpos($Xebe, 'This order has either expired or it has already been processed')) && $retry < 3) {
+        if ((strpos($Xebe, 'risk_threshold') || strpos($Xebe, 'Amount must be greater than zero') || strpos($Xebe, 'This order has either expired') || strpos($Xebe, 'Cannot determine payment method')) && $retry < 3) {
             $retry++;
             REMOVE_COOKIE();
             sleep(2);
@@ -181,6 +181,8 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
             RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nGateway Rejected: risk_threshold (after $retry retries)");
         } elseif (strpos($Xebe, 'Amount must be greater than zero') && $retry >= 3) {
             RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nError: Amount must be greater than zero (after $retry retries)");
+        } elseif (strpos($Xebe, 'Cannot determine payment method.') && $retry >= 3) {
+                RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nError: Cannot determine payment method. (after $retry retries)");
         } elseif (strpos($Xebe, 'This order has either expired or it has already been processed') && $retry >= 3) {
                 RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nError: This order has either expired or it has already been processed (after $retry retries)");
         } else {

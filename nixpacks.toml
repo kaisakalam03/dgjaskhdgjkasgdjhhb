@@ -1,5 +1,5 @@
 [phases.setup]
-nixPkgs = ["php82", "php82Extensions.curl", "php82Extensions.mbstring", "php82Extensions.dom"]
+nixPkgs = ["php82", "php82Extensions.curl", "php82Extensions.mbstring", "php82Extensions.dom", "php82Extensions.session"]
 
 [start]
 cmd = "bash start.sh"

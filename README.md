@@ -6,39 +6,60 @@ A PHP-based Telegram bot for card validation.
 
 The following files have been created for deployment:
 
-- `start.sh` - Startup script for the PHP web server
-- `Procfile` - Process file for platform deployment
+- `Dockerfile` - Docker container configuration (primary deployment method)
+- `.dockerignore` - Files to exclude from Docker build
 - `railway.toml` - Railway-specific configuration
+- `start.sh` - Startup script for the PHP web server (fallback)
+- `Procfile` - Process file for platform deployment (fallback)
+- `nixpacks.toml` - Nixpacks configuration (alternative)
 - `composer.json` - PHP dependency management
 - `.gitignore` - Git ignore rules
+- `vendor/autoload.php` - Minimal autoload stub (no external dependencies)
 
 ## Deployment Instructions
 
-### Railway Deployment
+### Railway Deployment (Docker)
 
 1. Make sure all files are committed to git:
    ```bash
    git add .
-   git commit -m "Add deployment configuration"
+   git commit -m "Add Docker deployment configuration"
    git push
    ```
 
 2. Connect your repository to Railway
 
-3. The bot will automatically deploy using the configuration files
+3. Railway will automatically detect and use the Dockerfile
 
-4. Set the webhook URL in Telegram:
+4. Set environment variables in Railway dashboard:
+   - `BOT_TOKEN` = Your Telegram bot token
+   - `PROXY_HOST` = Your proxy (optional)
+   - `PROXY_AUTH` = Your proxy credentials (optional)
+
+5. After deployment, set the webhook URL in Telegram:
    ```
    https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<your-railway-url>/telegram_bot.php
    ```
 
-### Heroku Deployment
+### Heroku Deployment (Docker)
 
 1. Install Heroku CLI
 2. Login: `heroku login`
 3. Create app: `heroku create your-app-name`
-4. Push: `git push heroku main`
-5. Set webhook as described above
+4. Set buildpack: `heroku stack:set container`
+5. Push: `git push heroku main`
+6. Set environment variables: `heroku config:set BOT_TOKEN=your_token`
+7. Set webhook as described above
+
+### Local Docker Testing
+
+```bash
+# Build the image
+docker build -t telegram-bot .
+
+# Run the container
+docker run -p 8080:8080 -e BOT_TOKEN=your_token telegram-bot
+```
 
 ## ⚠️ IMPORTANT SECURITY WARNINGS
 

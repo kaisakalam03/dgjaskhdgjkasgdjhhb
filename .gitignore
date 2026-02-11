@@ -3,17 +3,20 @@
 
 # Log files
 *.log
-*.txt
+CCNLIVES_TG.txt
 
 # IDE
 .vscode/
 .idea/
 
 # PHP
-vendor/
 composer.lock
 
 # Temporary files
 C:\xampp\c/
 tmp/
 temp/
+
+# Keep vendor directory (custom minimal autoload)
+!vendor/
+!vendor/autoload.php

@@ -1,5 +1,6 @@
 # Environment variables
 .env
+.env.nodejs
 
 # Log files
 *.log
@@ -11,6 +12,13 @@ CCNLIVES_TG.txt
 
 # PHP
 composer.lock
+
+# Node.js
+node_modules/
+package-lock.json
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
 # Temporary files
 C:\xampp\c/

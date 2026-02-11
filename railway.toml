@@ -1,6 +1,6 @@
 [build]
 builder = "dockerfile"
-dockerfilePath = "Dockerfile"
+dockerfilePath = "Dockerfile.nodejs"
 
 [deploy]
 restartPolicyType = "on_failure"

@@ -1,0 +1,25 @@
+{
+  "name": "telegram-card-checker-bot",
+  "version": "1.0.0",
+  "description": "Telegram Card Checker Bot in Node.js",
+  "main": "bot.js",
+  "scripts": {
+    "start": "node bot.js",
+    "dev": "nodemon bot.js"
+  },
+  "keywords": ["telegram", "bot", "card-checker"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.18.2",
+    "axios": "^1.6.2",
+    "uuid": "^9.0.1",
+    "https-proxy-agent": "^7.0.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

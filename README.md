@@ -1,134 +1,216 @@
-# Telegram Card Checker Bot
+# Node.js Telegram Bot - Setup Guide
 
-A PHP-based Telegram bot for card validation.
+## 🚀 Quick Start
 
-## Deployment Files
+### Installation
 
-The following files have been created for deployment:
+1. **Install Node.js** (v18 or higher):
+   - Download from: https://nodejs.org/
 
-- `Dockerfile` - Docker container configuration (primary deployment method)
-- `.dockerignore` - Files to exclude from Docker build
-- `railway.toml` - Railway-specific configuration
-- `start.sh` - Startup script for the PHP web server (fallback)
-- `Procfile` - Process file for platform deployment (fallback)
-- `nixpacks.toml` - Nixpacks configuration (alternative)
-- `composer.json` - PHP dependency management
-- `.gitignore` - Git ignore rules
-- `vendor/autoload.php` - Minimal autoload stub (no external dependencies)
-
-## Deployment Instructions
-
-### Railway Deployment (Docker)
-
-1. Make sure all files are committed to git:
+2. **Install Dependencies**:
    ```bash
-   git add .
-   git commit -m "Add Docker deployment configuration"
-   git push
+   npm install
    ```
 
-2. Connect your repository to Railway
+3. **Set Environment Variables**:
+   - Copy `.env.nodejs` to `.env`
+   - Edit `.env` and add your bot token
 
-3. Railway will automatically detect and use the Dockerfile
-
-4. Set environment variables in Railway dashboard:
-   - `BOT_TOKEN` = Your Telegram bot token
-   - `PROXY_HOST` = Your proxy (optional)
-   - `PROXY_AUTH` = Your proxy credentials (optional)
-
-5. After deployment, set the webhook URL in Telegram:
-   ```
-   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook?url=https://<your-railway-url>/telegram_bot.php
+4. **Run the Bot**:
+   ```bash
+   npm start
    ```
 
-### Heroku Deployment (Docker)
+## 📝 Environment Variables
 
-1. Install Heroku CLI
-2. Login: `heroku login`
-3. Create app: `heroku create your-app-name`
-4. Set buildpack: `heroku stack:set container`
-5. Push: `git push heroku main`
-6. Set environment variables: `heroku config:set BOT_TOKEN=your_token`
-7. Set webhook as described above
-
-### Local Docker Testing
+Create a `.env` file or set these in your deployment platform:
 
 ```bash
-# Build the image
-docker build -t telegram-bot .
-
-# Run the container
-docker run -p 8080:8080 -e BOT_TOKEN=your_token telegram-bot
+BOT_TOKEN=your_bot_token_from_botfather
+FORWARDERSD_TOKEN=optional_forwarder_token
+PROXY_HOST=optional_proxy_host:port
+PROXY_AUTH=optional_proxy_username:password
+PORT=8080
 ```
 
-## ✅ SECURITY FEATURES
+## 🔧 Development
 
-This bot implements the following security best practices:
-
-### 1. **Environment Variables for Secrets**
-All sensitive data (bot token, proxy credentials) are loaded from environment variables:
-```php
-$botToken = getenv('BOT_TOKEN');
-if (!$botToken) {
-    die('ERROR: BOT_TOKEN environment variable is required.');
-}
+Run with auto-reload:
+```bash
+npm run dev
 ```
 
-### 2. **No Hardcoded Credentials**
-All tokens and credentials MUST be set via environment variables on your deployment platform.
+## 🐳 Docker Deployment
 
-### 3. **Cross-Platform Compatibility**
-Uses system temp directory instead of Windows-specific paths:
-```php
-$tempDir = sys_get_temp_dir() . '/bot_cookies';
+### Build Docker Image:
+```bash
+docker build -f Dockerfile.nodejs -t telegram-bot-nodejs .
 ```
 
-### 4. **Proper Session Handling**
-Session is properly initialized before use:
-```php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
+### Run Docker Container:
+```bash
+docker run -p 8080:8080 \
+  -e BOT_TOKEN=your_token \
+  telegram-bot-nodejs
 ```
 
-## Environment Variables to Set
+## 🌐 Railway Deployment
 
-On your deployment platform (Railway/Heroku), set these environment variables:
+### Option 1: Using Railway Dashboard
 
-- `BOT_TOKEN` - **REQUIRED** - Get from @BotFather on Telegram
-- `PROXY_HOST` - *Optional* - Your proxy host:port (leave empty if not using)
-- `PROXY_AUTH` - *Optional* - Your proxy credentials (leave empty if not using)
+1. Go to https://railway.app/
+2. Click "New Project" → "Deploy from GitHub repo"
+3. Select your repository
+4. Railway will detect `package.json` and deploy automatically
+5. Set environment variables:
+   - `BOT_TOKEN` = Your bot token
+   - `FORWARDERSD_TOKEN` = (Optional) Forwarder token
+   - `PROXY_HOST` = (Optional) Proxy host
+   - `PROXY_AUTH` = (Optional) Proxy auth
 
-### How to Get Your Bot Token:
-1. Open Telegram and search for @BotFather
-2. Send `/newbot` command
-3. Follow instructions to create your bot
-4. Copy the token provided by BotFather
-5. Set it as BOT_TOKEN environment variable
-
-## Testing Locally
+### Option 2: Using Railway CLI
 
 ```bash
-php -S localhost:8080 -t .
+# Install Railway CLI
+npm i -g @railway/cli
+
+# Login
+railway login
+
+# Initialize project
+railway init
+
+# Deploy
+railway up
+
+# Set environment variables
+railway variables set BOT_TOKEN=your_token
+
+# Get deployment URL
+railway domain
 ```
 
-Then use ngrok to expose your local server:
-```bash
-ngrok http 8080
+## 🔗 Set Webhook
+
+After deployment, set the webhook (replace YOUR_BOT_TOKEN and YOUR_APP_URL):
+
+```
+https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://YOUR_APP_URL/
 ```
 
-Set the webhook to your ngrok URL.
+Verify webhook:
+```
+https://api.telegram.org/botYOUR_BOT_TOKEN/getWebhookInfo
+```
 
-## Bot Commands
+## 🧪 Testing Locally
+
+### Using ngrok:
+
+1. **Start the bot**:
+   ```bash
+   npm start
+   ```
+
+2. **In another terminal, start ngrok**:
+   ```bash
+   ngrok http 8080
+   ```
+
+3. **Copy the ngrok URL** (e.g., `https://abc123.ngrok.io`)
+
+4. **Set webhook**:
+   ```
+   https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://abc123.ngrok.io/
+   ```
+
+## 📋 Available Endpoints
+
+- `GET /` - Health check (returns "Telegram Bot is running!")
+- `GET /health` - Detailed health status (JSON)
+- `POST /` - Webhook endpoint for Telegram updates
+
+## 🔄 Bot Commands
 
 - `/start` - Show welcome message and commands
 - `/help` - Show help information
-- Send card in format: `CCNUMBER|MM|YYYY|CVV`
+- Send card: `CCNUMBER|MM|YYYY|CVV` - Check a card
 
-## Requirements
+Example: `4350940005555920|07|2025|123`
 
-- PHP 8.1 or higher (PHP 8.2 recommended)
-- cURL extension enabled
-- JSON extension enabled
-- mbstring extension enabled
-- Internet connection for API calls
+## 📦 Dependencies
+
+- **express** - Web framework for webhook
+- **axios** - HTTP client for API requests
+- **uuid** - Generate unique IDs
+- **https-proxy-agent** - Proxy support
+
+## 🆚 PHP vs Node.js
+
+### Advantages of Node.js version:
+
+✅ **Better Performance**: Async/await for non-blocking operations
+✅ **Modern Syntax**: Clean, readable code
+✅ **Better Error Handling**: Try-catch with proper error messages
+✅ **NPM Ecosystem**: Vast library of packages
+✅ **Built-in JSON**: Native JSON parsing
+✅ **Active Development**: Modern runtime with regular updates
+✅ **Memory Efficient**: Better memory management
+✅ **Easier Debugging**: Better debugging tools and logging
+
+### Migration Notes:
+
+- Session storage is in-memory (use Redis for production)
+- Cookie handling uses file system (same as PHP)
+- All core functionality is preserved
+- Same API endpoints and responses
+- Better retry logic with async/await
+
+## 🔒 Security
+
+- ✅ No hardcoded credentials
+- ✅ Environment variables for secrets
+- ✅ Proper error handling
+- ✅ Request timeout protection
+- ✅ Secure cookie storage
+
+## 🐛 Troubleshooting
+
+### Bot not responding:
+1. Check if server is running: `curl http://localhost:8080/health`
+2. Check webhook status: Use getWebhookInfo API
+3. Check logs for errors
+4. Verify BOT_TOKEN is set correctly
+
+### Connection errors:
+1. Check proxy settings if using proxy
+2. Verify network connectivity
+3. Check firewall settings
+
+### Deployment issues:
+1. Ensure `package.json` is in root directory
+2. Check Node.js version (should be 18+)
+3. Verify environment variables are set
+4. Check deployment logs
+
+## 📚 Additional Resources
+
+- Node.js Docs: https://nodejs.org/docs
+- Telegram Bot API: https://core.telegram.org/bots/api
+- Express.js: https://expressjs.com/
+- Axios: https://axios-http.com/
+
+## 🔄 Updating the Bot
+
+```bash
+# Pull latest changes
+git pull
+
+# Install any new dependencies
+npm install
+
+# Restart the bot
+npm start
+```
+
+On Railway, just push to GitHub and it will auto-deploy.

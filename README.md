@@ -111,6 +111,8 @@ Set the webhook to your ngrok URL.
 
 ## Requirements
 
-- PHP 7.4 or higher
+- PHP 8.1 or higher (PHP 8.2 recommended)
 - cURL extension enabled
+- JSON extension enabled
+- mbstring extension enabled
 - Internet connection for API calls

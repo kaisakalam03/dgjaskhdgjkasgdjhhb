@@ -5,3 +5,6 @@ builder = "nixpacks"
 startCommand = "bash start.sh"
 restartPolicyType = "on_failure"
 restartPolicyMaxRetries = 10
+
+[env]
+PHP_VERSION = "8.2"

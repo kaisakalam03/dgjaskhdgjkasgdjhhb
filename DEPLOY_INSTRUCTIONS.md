@@ -9,13 +9,13 @@
 4. Connect your GitHub account and select this repository
 5. Railway will auto-detect the Dockerfile and deploy
 6. After deployment, go to Settings → Variables and add:
-   - `BOT_TOKEN` = `8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4`
-   - `PROXY_HOST` = `proxy.okeyproxy.com:31212` (optional)
-   - `PROXY_AUTH` = `customer-4nao708160-continent-AS-country-SG:7tzdwvba` (optional)
+   - `BOT_TOKEN` = `YOUR_BOT_TOKEN_FROM_BOTFATHER`
+   - `PROXY_HOST` = `your-proxy-host:port` (optional, leave empty if not using)
+   - `PROXY_AUTH` = `proxy-username:password` (optional, leave empty if not using)
 7. Copy your deployment URL (e.g., `https://your-app.railway.app`)
-8. Set webhook: Open this URL in browser:
+8. Set webhook: Open this URL in browser (replace YOUR_BOT_TOKEN and your-app-url):
    ```
-   https://api.telegram.org/bot8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4/setWebhook?url=https://your-app.railway.app/telegram_bot.php
+   https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://your-app-url/telegram_bot.php
    ```
 
 ### Option B: Using Railway CLI
@@ -33,7 +33,7 @@ railway init
 railway up
 
 # Set environment variables
-railway variables set BOT_TOKEN=8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4
+railway variables set BOT_TOKEN=YOUR_BOT_TOKEN_FROM_BOTFATHER
 
 # Get deployment URL
 railway domain
@@ -45,12 +45,12 @@ railway domain
 2. Login: `heroku login`
 3. Create app: `heroku create your-bot-name`
 4. Set stack: `heroku stack:set container`
-5. Set config: `heroku config:set BOT_TOKEN=8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4`
+5. Set config: `heroku config:set BOT_TOKEN=YOUR_BOT_TOKEN_FROM_BOTFATHER`
 6. Deploy: `git push heroku main`
 7. Get URL: `heroku apps:info`
-8. Set webhook (replace <app-name>):
+8. Set webhook (replace YOUR_BOT_TOKEN and app-name):
    ```
-   https://api.telegram.org/bot8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4/setWebhook?url=https://<app-name>.herokuapp.com/telegram_bot.php
+   https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://app-name.herokuapp.com/telegram_bot.php
    ```
 
 ## Method 3: Render
@@ -60,7 +60,7 @@ railway domain
 3. Connect your GitHub repository
 4. Render will detect Dockerfile automatically
 5. Set environment variables:
-   - `BOT_TOKEN` = `8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4`
+   - `BOT_TOKEN` = `YOUR_BOT_TOKEN_FROM_BOTFATHER`
 6. Click "Create Web Service"
 7. Copy your service URL
 8. Set webhook with your URL
@@ -77,15 +77,15 @@ php -S localhost:8080 -t .
 ngrok http 8080
 
 # Copy the ngrok URL (e.g., https://abc123.ngrok.io)
-# Set webhook:
-https://api.telegram.org/bot8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4/setWebhook?url=https://abc123.ngrok.io/telegram_bot.php
+# Set webhook (replace YOUR_BOT_TOKEN):
+https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://abc123.ngrok.io/telegram_bot.php
 ```
 
 ## Verify Webhook is Set
 
-Check webhook status:
+Check webhook status (replace YOUR_BOT_TOKEN):
 ```
-https://api.telegram.org/bot8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4/getWebhookInfo
+https://api.telegram.org/botYOUR_BOT_TOKEN/getWebhookInfo
 ```
 
 ## Files to Commit (if using Git)

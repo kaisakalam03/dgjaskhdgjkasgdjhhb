@@ -9,12 +9,16 @@ if (session_status() === PHP_SESSION_NONE) {
 include("userAgent.php");
 
 // Telegram Bot Configuration - Use environment variables for security
-define('BOT_TOKEN', getenv('BOT_TOKEN') ?: '8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4');
+$botToken = getenv('BOT_TOKEN');
+if (!$botToken) {
+    die('ERROR: BOT_TOKEN environment variable is required. Please set it in your deployment platform.');
+}
+define('BOT_TOKEN', $botToken);
 define('API_URL', 'https://api.telegram.org/bot' . BOT_TOKEN . '/');
 
-// Proxy Configuration - Use environment variables
-define('PROXY_HOST', getenv('PROXY_HOST') ?: 'proxy.okeyproxy.com:31212');
-define('PROXY_AUTH', getenv('PROXY_AUTH') ?: 'customer-4nao708160-continent-AS-country-SG:7tzdwvba');
+// Proxy Configuration - Use environment variables (optional)
+define('PROXY_HOST', getenv('PROXY_HOST') ?: '');
+define('PROXY_AUTH', getenv('PROXY_AUTH') ?: '');
 
 // Initialize
 $agent = new userAgent();
@@ -224,11 +228,11 @@ function g(string $str, string $start, string $end, bool $decode = false)
 
 function forwardersd($message, $chat_id)
 {
-  $bot_token = '8173601851:AAEEl2Jo1KXHR4otDEGmCLjc7JuTElN1nGs'; // bot token
+  // Forward message using the main bot token
   $context = stream_context_create(array(
     'http' => array('ignore_errors' => true),
   ));
-  file_get_contents('https://api.telegram.org/bot' . $bot_token . '/sendMessage?chat_id=' . $chat_id . '&text=' . $message . '&parse_mode=HTML', false, $context);
+  file_get_contents('https://api.telegram.org/bot' . BOT_TOKEN . '/sendMessage?chat_id=' . $chat_id . '&text=' . $message . '&parse_mode=HTML', false, $context);
 }
 
 function R($u, $p = [], $t = 0)
@@ -236,6 +240,10 @@ function R($u, $p = [], $t = 0)
     global $cookie;
     if (!$p) $p[l('customrequest')] = 'GET';
     else foreach ($p as $n => $s) {
+        // Skip empty proxy settings
+        if (($n === 'proxy' || $n === 'proxyuserpwd') && empty($s)) {
+            continue;
+        }
         $p[l($n)] = $s;
         unset($p[$n]);
     }

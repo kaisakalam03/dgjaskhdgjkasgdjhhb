@@ -45,8 +45,8 @@ echo 3. Create a new project and connect your GitHub repo
 echo 4. Set BOT_TOKEN environment variable
 echo 5. Deploy will happen automatically
 echo.
-echo After deployment, set webhook:
-echo https://api.telegram.org/bot8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4/setWebhook?url=https://YOUR-APP-URL/telegram_bot.php
+echo After deployment, set webhook (replace YOUR_BOT_TOKEN and YOUR-APP-URL):
+echo https://api.telegram.org/botYOUR_BOT_TOKEN/setWebhook?url=https://YOUR-APP-URL/telegram_bot.php
 echo.
 pause
 exit /b 0

@@ -61,42 +61,30 @@ docker build -t telegram-bot .
 docker run -p 8080:8080 -e BOT_TOKEN=your_token telegram-bot
 ```
 
-## ⚠️ IMPORTANT SECURITY WARNINGS
+## ✅ SECURITY FEATURES
 
-Your current code has several security issues that MUST be fixed before deployment:
+This bot implements the following security best practices:
 
-### 1. **EXPOSED BOT TOKEN** (Line 6)
+### 1. **Environment Variables for Secrets**
+All sensitive data (bot token, proxy credentials) are loaded from environment variables:
 ```php
-define('BOT_TOKEN', '8269957175:AAEA2PiWIt5s3KWsvRJRLRKXnY-tdko9z-4');
-```
-**Fix:** Use environment variables instead:
-```php
-define('BOT_TOKEN', getenv('BOT_TOKEN') ?: 'your-token-here');
-```
-
-### 2. **EXPOSED PROXY CREDENTIALS** (Lines 77-78)
-```php
-$proxy = 'proxy.okeyproxy.com:31212';
-$proxyuserpwd = 'customer-4nao708160-continent-AS-country-SG:7tzdwvba';
-```
-**Fix:** Move to environment variables
-
-### 3. **WINDOWS-SPECIFIC PATHS** (Lines 13, 221, 274)
-```php
-!is_dir('C:\xampp\c') ? shell_exec('mkdir C:\xampp\c') : NULL;
-```
-**Fix:** Use cross-platform paths:
-```php
-$tempDir = sys_get_temp_dir() . '/bot_cookies';
-if (!is_dir($tempDir)) {
-    mkdir($tempDir, 0755, true);
+$botToken = getenv('BOT_TOKEN');
+if (!$botToken) {
+    die('ERROR: BOT_TOKEN environment variable is required.');
 }
 ```
 
-### 4. **SESSION WITHOUT session_start()**
-The code uses `$_SESSION` without initializing it (Line 46)
+### 2. **No Hardcoded Credentials**
+All tokens and credentials MUST be set via environment variables on your deployment platform.
 
-**Fix:** Add at the beginning:
+### 3. **Cross-Platform Compatibility**
+Uses system temp directory instead of Windows-specific paths:
+```php
+$tempDir = sys_get_temp_dir() . '/bot_cookies';
+```
+
+### 4. **Proper Session Handling**
+Session is properly initialized before use:
 ```php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -107,9 +95,16 @@ if (session_status() === PHP_SESSION_NONE) {
 
 On your deployment platform (Railway/Heroku), set these environment variables:
 
-- `BOT_TOKEN` - Your Telegram bot token
-- `PROXY_HOST` - Your proxy host
-- `PROXY_AUTH` - Your proxy authentication credentials
+- `BOT_TOKEN` - **REQUIRED** - Get from @BotFather on Telegram
+- `PROXY_HOST` - *Optional* - Your proxy host:port (leave empty if not using)
+- `PROXY_AUTH` - *Optional* - Your proxy credentials (leave empty if not using)
+
+### How to Get Your Bot Token:
+1. Open Telegram and search for @BotFather
+2. Send `/newbot` command
+3. Follow instructions to create your bot
+4. Copy the token provided by BotFather
+5. Set it as BOT_TOKEN environment variable
 
 ## Testing Locally
 

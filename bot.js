@@ -253,7 +253,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n\n💵 *Pricing:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
             true
         );
         return res.sendStatus(200);

@@ -29,6 +29,9 @@ if (!fs.existsSync(COOKIE_DIR)) {
 // Session storage (in-memory)
 const sessions = {};
 
+// Cancellation flags for ongoing operations
+const cancelFlags = {};
+
 // User Agent Generator
 class UserAgent {
     constructor() {
@@ -253,7 +256,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n\n💵 *Pricing:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
             true
         );
         return res.sendStatus(200);
@@ -262,6 +265,17 @@ app.post('/', async (req, res) => {
     if (text === '/help') {
         await sendMessage(chatId, 
             "📋 *Help*\n\n*Card Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123` (quantity: 1)\n`4350940005555920|07|2025|123,15` (quantity: 15)\n`4350940005555920|07|2025|123,30` (quantity: 30)\n\nJust send the card to check!", 
+            true
+        );
+        return res.sendStatus(200);
+    }
+
+    if (text === '/stop') {
+        // Set cancel flag for this user
+        cancelFlags[chatId] = true;
+        
+        await sendMessage(chatId, 
+            "🛑 *Stop Request Received*\n\nCancelling ongoing card check...\n\nThe bot will stop processing as soon as possible.", 
             true
         );
         return res.sendStatus(200);
@@ -281,6 +295,9 @@ app.post('/', async (req, res) => {
 });
 
 async function processCard(chatId, cardText) {
+    // Clear any previous cancel flag and set processing flag
+    cancelFlags[chatId] = false;
+    
     const cookie = randomString(10);
     const sessionId = `session_${chatId}_${Date.now()}`;
     
@@ -289,6 +306,12 @@ async function processCard(chatId, cardText) {
     };
 
     try {
+        // Check for cancellation
+        if (cancelFlags[chatId]) {
+            await sendMessage(chatId, "🛑 *Cancelled*\n\nCard check cancelled by user.", true);
+            delete cancelFlags[chatId];
+            return;
+        }
         // Get random user info with error handling
         let userDetails;
         try {
@@ -341,6 +364,15 @@ async function processCard(chatId, cardText) {
         let result = null;
 
         while (retry <= 3 && !result) {
+            // Check for cancellation
+            if (cancelFlags[chatId]) {
+                removeCookie(cookie);
+                delete sessions[sessionId];
+                await sendMessage(chatId, "🛑 *Cancelled*\n\n💳 `" + cardText + "`\n\nCard check cancelled by user.", true);
+                delete cancelFlags[chatId];
+                return;
+            }
+            
             try {
                 // Step 1: Create Order
                 const order = await makeRequest(
@@ -476,6 +508,15 @@ async function processCard(chatId, cardText) {
                     retry++;
                     removeCookie(cookie);
                     await new Promise(resolve => setTimeout(resolve, 2000));
+                    
+                    // Check for cancellation after wait
+                    if (cancelFlags[chatId]) {
+                        delete sessions[sessionId];
+                        await sendMessage(chatId, "🛑 *Cancelled*\n\n💳 `" + cardText + "`\n\nCard check cancelled by user.", true);
+                        delete cancelFlags[chatId];
+                        return;
+                    }
+                    
                     continue;
                 }
 
@@ -540,6 +581,7 @@ async function processCard(chatId, cardText) {
 
         removeCookie(cookie);
         delete sessions[sessionId];
+        delete cancelFlags[chatId]; // Clean up cancel flag
         
         if (result) {
             await sendMessage(chatId, result.message, true);
@@ -549,6 +591,7 @@ async function processCard(chatId, cardText) {
         console.error('Error processing card:', error);
         removeCookie(cookie);
         delete sessions[sessionId];
+        delete cancelFlags[chatId]; // Clean up cancel flag
         await sendMessage(chatId, `⚠️ *ERROR*\n\n💳 \`${cardText}\`\n\n📝 *Error:*\n${error.message}`, true);
     }
 }

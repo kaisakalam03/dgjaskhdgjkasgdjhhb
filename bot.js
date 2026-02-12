@@ -353,12 +353,16 @@ async function processCard(chatId, cardText) {
             };
         }
 
-        await sendMessage(chatId, `⏳ Checking: \`${cardText}\`\n\nPlease wait...`, true);
-
         const { cc, mm, yyyy, cvv, quantity } = parseCard(cardText, 4);
         const yy = yyyy.length === 4 ? yyyy.substring(2) : yyyy;
         
-        console.log(`Processing card with quantity: ${quantity}`);
+        // Calculate amount ($10.50 per quantity)
+        const pricePerQuantity = 10.50;
+        const totalAmount = (quantity * pricePerQuantity).toFixed(2);
+        
+        console.log(`Processing card with quantity: ${quantity}, amount: $${totalAmount}`);
+        
+        await sendMessage(chatId, `⏳ Checking: \`${cardText}\`\n💰 Amount: $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n\nPlease wait...`, true);
 
         let retry = 0;
         let result = null;
@@ -535,7 +539,7 @@ async function processCard(chatId, cardText) {
                     errorMsg = parsedResponse?.ErrorMessage || 'Payment Authorised';
                     result = {
                         status: 'live',
-                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
+                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
                     };
                 } else if (retry >= 3) {
                     let errorMsg = 'Unknown error';
@@ -566,7 +570,7 @@ async function processCard(chatId, cardText) {
                     
                     result = {
                         status: 'dead',
-                        message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n\n📝 *Response:*\n${errorMsg}`
+                        message: `❌ *DEAD*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n\n📝 *Response:*\n${errorMsg}`
                     };
                 }
             } catch (error) {

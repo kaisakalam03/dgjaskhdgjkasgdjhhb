@@ -529,7 +529,7 @@ async function processCard(chatId, cardText) {
                     responseText.includes('"IsValid":true') || 
                     responseText.includes('Insufficient') || 
                     responseText.includes('Limit') || 
-                    responseText.includes('vistaBookingNumber')) {
+                    responseText.includes('VistaBookingNumber')) {
                     
                     // Save live card
                     fs.appendFileSync('CCNLIVES_TG.txt', cardText + '\n');

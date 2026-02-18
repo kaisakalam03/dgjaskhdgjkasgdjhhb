@@ -256,7 +256,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/mass - Check up to 10 cards (one per line)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
             true
         );
         return res.sendStatus(200);
@@ -281,7 +281,31 @@ app.post('/', async (req, res) => {
         return res.sendStatus(200);
     }
 
-    // Check if message contains card data (with optional quantity)
+    if (text === '/mass') {
+        await sendMessage(chatId, 
+            "📦 *Mass Check* _(max 10 cards)_\n\nSend up to 10 cards in your *next message*, one card per line.\n\n*Format per line:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Example:*\n`4147202730390331|03|2030|392`\n`5555555555554444|06|2028|123,5`\n`4111111111111111|12|2025|456`\n\n⚠️ Maximum 10 cards per message. Use /stop to cancel.", 
+            true
+        );
+        return res.sendStatus(200);
+    }
+
+    // Check for mass check: multiple cards (2-10), one per line
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    const cardLines = lines.filter(line => /^\d{15,16}\|/.test(line));
+    
+    if (cardLines.length >= 2) {
+        if (cardLines.length > 10) {
+            await sendMessage(chatId, 
+                `❌ *Too many cards*\n\nYou sent ${cardLines.length} cards. Maximum is *10* cards per mass check.\n\nPlease send 10 or fewer cards, one per line.`, 
+                true
+            );
+            return res.sendStatus(200);
+        }
+        processMassCards(chatId, cardLines);
+        return res.sendStatus(200);
+    }
+
+    // Check if message contains single card data (with optional quantity)
     if (/^\d{15,16}\|/.test(text)) {
         processCard(chatId, text);
         return res.sendStatus(200);
@@ -615,6 +639,32 @@ async function processCard(chatId, cardText) {
         delete cancelFlags[chatId]; // Clean up cancel flag
         await sendMessage(chatId, `⚠️ *ERROR*\n\n💳 \`${cardText}\`\n\n📝 *Error:*\n${error.message}`, true);
     }
+}
+
+async function processMassCards(chatId, cardLines) {
+    const total = cardLines.length;
+    
+    await sendMessage(chatId, 
+        `📦 *Mass check started*\n\n${total} card(s) — processing one by one.\nUse /stop to cancel.`, 
+        true
+    );
+    
+    for (let i = 0; i < cardLines.length; i++) {
+        if (cancelFlags[chatId]) {
+            await sendMessage(chatId, `🛑 *Mass check cancelled* by user. Processed ${i}/${total} cards.`, true);
+            delete cancelFlags[chatId];
+            return;
+        }
+        
+        await processCard(chatId, cardLines[i]);
+        
+        // Short delay between cards to avoid rate limits
+        if (i < cardLines.length - 1) {
+            await new Promise(resolve => setTimeout(resolve, 500));
+        }
+    }
+    
+    await sendMessage(chatId, `✅ *Mass check done*\n\n${total} card(s) processed.`, true);
 }
 
 // Health check

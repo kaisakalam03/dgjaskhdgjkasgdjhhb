@@ -98,18 +98,49 @@ function randomDigits(length) {
     return result;
 }
 
-// Generate cards from format: PARTIAL_NUMBER|MM|YYYY/CARD_COUNT,ORDER_QUANTITY
+// Luhn algorithm for card validation (cardgen v1)
+function luhnCheck(cardNumber) {
+    let sum = 0;
+    let isEven = false;
+    for (let i = cardNumber.length - 1; i >= 0; i--) {
+        let digit = parseInt(cardNumber[i], 10);
+        if (isEven) {
+            digit *= 2;
+            if (digit > 9) digit -= 9;
+        }
+        sum += digit;
+        isEven = !isEven;
+    }
+    return sum % 10 === 0;
+}
+
+// Generate 16-digit Luhn-valid card from BIN (1-15 digits; cardgen v1)
+function generateCardNumber(bin) {
+    let cardNumber = bin;
+    while (cardNumber.length < 15) {
+        cardNumber += Math.floor(Math.random() * 10);
+    }
+    for (let digit = 0; digit <= 9; digit++) {
+        if (luhnCheck(cardNumber + digit)) {
+            cardNumber += digit;
+            break;
+        }
+    }
+    return cardNumber;
+}
+
+// Generate cards from format: PARTIAL_NUMBER|MM|YYYY/CARD_COUNT,ORDER_QUANTITY (MM/YYYY can be rnd)
 // Returns { cardLines } or { error }
 function parseAndGenerateCards(input) {
     const trimmed = input.trim();
-    if (!/^\d{1,15}\|\d{1,2}\|\d{2,4}\/\d+,\d+$/.test(trimmed)) {
+    if (!/^\d{1,15}\|(?:rnd|\d{1,2})\|(?:rnd|\d{2,4})\/\d+,\d+$/.test(trimmed)) {
         return { error: 'Invalid generate format.' };
     }
     const [left, right] = trimmed.split('/');
     const leftParts = left.split('|');
     const partialNumber = leftParts[0];
-    const mm = leftParts[1];
-    let yyyy = leftParts[2];
+    const mmRaw = leftParts[1];
+    let yyyyRaw = leftParts[2];
     const rightParts = right.split(',');
     const cardCount = parseInt(rightParts[0], 10);
     const orderQty = parseInt(rightParts[1], 10);
@@ -117,14 +148,18 @@ function parseAndGenerateCards(input) {
     if (partialNumber.length < 1 || partialNumber.length > 15) {
         return { error: 'Partial number must be 1–15 digits.' };
     }
-    const mmNum = parseInt(mm, 10);
-    if (mmNum < 1 || mmNum > 12) {
-        return { error: 'Month must be 01–12.' };
+    if (mmRaw !== 'rnd') {
+        const mmNum = parseInt(mmRaw, 10);
+        if (mmNum < 1 || mmNum > 12) {
+            return { error: 'Month must be 01–12 or rnd.' };
+        }
     }
-    if (yyyy.length === 2) {
-        yyyy = '20' + yyyy;
-    } else if (yyyy.length !== 4) {
-        return { error: 'Year must be 2 or 4 digits.' };
+    if (yyyyRaw !== 'rnd') {
+        if (yyyyRaw.length === 2) {
+            yyyyRaw = '20' + yyyyRaw;
+        } else if (yyyyRaw.length !== 4) {
+            return { error: 'Year must be 2 or 4 digits or rnd.' };
+        }
     }
     if (isNaN(cardCount) || cardCount < 2) {
         return { error: 'Card count must be at least 2.' };
@@ -133,11 +168,12 @@ function parseAndGenerateCards(input) {
         return { error: 'Order quantity must be at least 1.' };
     }
 
-    const digitsToAdd = 16 - partialNumber.length;
     const cardLines = [];
     for (let i = 0; i < cardCount; i++) {
-        const cc = partialNumber + randomDigits(digitsToAdd);
-        const cvv = randomDigits(3);
+        const cc = generateCardNumber(partialNumber);
+        const mm = mmRaw === 'rnd' ? (Math.floor(Math.random() * 12) + 1).toString().padStart(2, '0') : mmRaw;
+        const yyyy = yyyyRaw === 'rnd' ? (2025 + Math.floor(Math.random() * 6)).toString() : yyyyRaw;
+        const cvv = Math.floor(Math.random() * 900) + 100;
         cardLines.push(`${cc}|${mm}|${yyyy}|${cvv},${orderQty}`);
     }
     return { cardLines };
@@ -325,7 +361,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a single card\n/mass - Check multiple cards (3 max)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Formats:*\n• Single/mass: `CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n• Generate: `PARTIAL|MM|YYYY/COUNT,ORDER_QTY` (1–15 digits → 16-digit cards)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/3,15` (generate 3 cards, order qty 15)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a single card\n/mass - Check multiple cards (3 max)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Formats:*\n• Single/mass: `CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n• Generate: `PARTIAL|MM|YYYY/COUNT,ORDER_QTY` (Luhn-valid 16-digit cards; MM/YYYY can be `rnd`)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/3,15` or `424242424242|rnd|rnd/3,15`", 
             true
         );
         return res.sendStatus(200);
@@ -333,7 +369,7 @@ app.post('/', async (req, res) => {
 
     if (text === '/help') {
         await sendMessage(chatId, 
-            "📋 *Help*\n\n*Card format:*\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Generate format:*\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\n(1–15 digit BIN → bot generates 16-digit cards with random CVV; max 3.)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/3,15` (generate 3 cards)\n\nJust send a card or generate line to check.", 
+            "📋 *Help*\n\n*Card format:*\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Generate format:*\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\n(1–15 digit BIN → Luhn-valid 16-digit cards, CVV 100–999. Use \`rnd\` for MM or YYYY for random; max 3.)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/3,15` or `424242424242|rnd|rnd/3,15`\n\nJust send a card or generate line to check.", 
             true
         );
         return res.sendStatus(200);
@@ -360,7 +396,7 @@ app.post('/', async (req, res) => {
 
     if (text === '/mass') {
         await sendMessage(chatId, 
-            "📦 *Mass Check*\n\n• Can check up to 3 cards per message\n\n*Option A – send cards* (one per line):\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Option B – generate cards* (single line):\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\nExample: `424242424242|08|2025/3,15` → 3 cards, order qty 15\n\nUse /stop to cancel.", 
+            "📦 *Mass Check*\n\n• Can check up to 3 cards per message\n\n*Option A – send cards* (one per line):\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Option B – generate cards* (single line, Luhn-valid):\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY` (MM/YYYY can be `rnd`)\nExample: `424242424242|08|2025/3,15` or `424242424242|rnd|rnd/3,15`\n\nUse /stop to cancel.", 
             true
         );
         return res.sendStatus(200);
@@ -378,8 +414,8 @@ app.post('/', async (req, res) => {
         return res.sendStatus(200);
     }
 
-    // Check for generate format: PARTIAL_NUMBER|MM|YYYY/CARD_COUNT,ORDER_QUANTITY (single line)
-    if (/^\d{1,15}\|\d{1,2}\|\d{2,4}\/\d+,\d+$/.test(text.trim())) {
+    // Check for generate format: PARTIAL_NUMBER|MM|YYYY/CARD_COUNT,ORDER_QUANTITY (MM/YYYY can be rnd; single line)
+    if (/^\d{1,15}\|(?:rnd|\d{1,2})\|(?:rnd|\d{2,4})\/\d+,\d+$/.test(text.trim())) {
         const generateResult = parseAndGenerateCards(text);
         if (generateResult.cardLines) {
             const maxMass = isAdminUser ? MASS_MAX_CARDS : MASS_MAX_CARDS_NON_ADMIN;
@@ -422,6 +458,7 @@ app.post('/', async (req, res) => {
 
     // Check if message contains single card data (with optional quantity)
     if (/^\d{15,16}\|/.test(text)) {
+        cancelFlags[chatId] = false; // New single-card run
         processCard(chatId, text);
         return res.sendStatus(200);
     } else {
@@ -434,9 +471,7 @@ app.post('/', async (req, res) => {
 });
 
 async function processCard(chatId, cardText) {
-    // Clear any previous cancel flag and set processing flag
-    cancelFlags[chatId] = false;
-    
+    // Do not clear cancel flag here — mass check must see /stop; single/mass runners set false when starting
     const cookie = randomString(10);
     const sessionId = `session_${chatId}_${Date.now()}`;
     
@@ -741,8 +776,8 @@ async function processCard(chatId, cardText) {
 
         removeCookie(cookie);
         delete sessions[sessionId];
-        delete cancelFlags[chatId]; // Clean up cancel flag
-        
+        // Do not delete cancelFlags here — mass check must see /stop between cards
+
         if (result) {
             await sendMessage(chatId, result.message, true);
         }
@@ -751,34 +786,36 @@ async function processCard(chatId, cardText) {
         console.error('Error processing card:', error);
         removeCookie(cookie);
         delete sessions[sessionId];
-        delete cancelFlags[chatId]; // Clean up cancel flag
+        // Do not delete cancelFlags here — mass check must see /stop between cards
         await sendMessage(chatId, `⚠️ *ERROR*\n\n💳 \`${cardText}\`\n\n📝 *Error:*\n${error.message}`, true);
     }
 }
 
 async function processMassCards(chatId, cardLines) {
     const total = cardLines.length;
-    
+    cancelFlags[chatId] = false; // New run: clear any previous /stop so we don't cancel immediately
+
     await sendMessage(chatId, 
         `📦 *Mass check started*\n\n${total} card(s) — processing one by one.\nUse /stop to cancel.`, 
         true
     );
-    
+
     for (let i = 0; i < cardLines.length; i++) {
         if (cancelFlags[chatId]) {
             await sendMessage(chatId, `🛑 *Mass check cancelled* by user. Processed ${i}/${total} cards.`, true);
             delete cancelFlags[chatId];
             return;
         }
-        
+
         await processCard(chatId, cardLines[i]);
-        
+
         // Short delay between cards to avoid rate limits
         if (i < cardLines.length - 1) {
             await new Promise(resolve => setTimeout(resolve, 500));
         }
     }
-    
+
+    delete cancelFlags[chatId]; // Clean up so next run starts fresh
     await sendMessage(chatId, `✅ *Mass check done*\n\n${total} card(s) processed.`, true);
 }
 

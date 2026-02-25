@@ -256,7 +256,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/mass - Check up to 10 cards (one per line)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/mass - Check up to 3 cards (one per line)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
             true
         );
         return res.sendStatus(200);
@@ -283,7 +283,7 @@ app.post('/', async (req, res) => {
 
     if (text === '/mass') {
         await sendMessage(chatId, 
-            "📦 *Mass Check* _(max 10 cards)_\n\nSend up to 10 cards in your *next message*, one card per line.\n\n*Format per line:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Example:*\n`4147202730390331|03|2030|392`\n`5555555555554444|06|2028|123,5`\n`4111111111111111|12|2025|456`\n\n⚠️ Maximum 10 cards per message. Use /stop to cancel.", 
+            "📦 *Mass Check* _(max 10 cards)_\n\nSend up to 3 cards in your *next message*, one card per line.\n\n*Format per line:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Example:*\n`4147202730390331|03|2030|392`\n`5555555555554444|06|2028|123,5`\n`4111111111111111|12|2025|456`\n\n⚠️ Maximum 3 cards per message. Use /stop to cancel.", 
             true
         );
         return res.sendStatus(200);
@@ -294,9 +294,9 @@ app.post('/', async (req, res) => {
     const cardLines = lines.filter(line => /^\d{15,16}\|/.test(line));
     
     if (cardLines.length >= 2) {
-        if (cardLines.length > 10) {
+        if (cardLines.length > 3) {
             await sendMessage(chatId, 
-                `❌ *Too many cards*\n\nYou sent ${cardLines.length} cards. Maximum is *10* cards per mass check.\n\nPlease send 10 or fewer cards, one per line.`, 
+                `❌ *Too many cards*\n\nYou sent ${cardLines.length} cards. Maximum is *3* cards per mass check.\n\nPlease send 3 or fewer cards, one per line.`, 
                 true
             );
             return res.sendStatus(200);

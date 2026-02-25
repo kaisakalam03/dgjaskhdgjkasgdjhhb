@@ -325,7 +325,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card (admins only)\n/mass - Check multiple cards (admins: 50 max, others: 3 max)\n/help - Show help\n/stop - Cancel ongoing check\n/admin - Admin panel (admins only)\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Formats:*\n• Single/mass: `CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n• Generate: `PARTIAL|MM|YYYY/COUNT,ORDER_QTY` (1–15 digits → 16-digit cards)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/50,15` (generate 50 cards, order qty 15)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a single card\n/mass - Check multiple cards (3 max)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Formats:*\n• Single/mass: `CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n• Generate: `PARTIAL|MM|YYYY/COUNT,ORDER_QTY` (1–15 digits → 16-digit cards)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/3,15` (generate 3 cards, order qty 15)", 
             true
         );
         return res.sendStatus(200);
@@ -333,7 +333,15 @@ app.post('/', async (req, res) => {
 
     if (text === '/help') {
         await sendMessage(chatId, 
-            "📋 *Help*\n\n*Card format:*\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Generate format:*\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\n(1–15 digit BIN → bot generates 16-digit cards with random CVV; admins max 50, others max 3.)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/50,15` (generate 50 cards)\n\nJust send a card or generate line to check.", 
+            "📋 *Help*\n\n*Card format:*\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Generate format:*\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\n(1–15 digit BIN → bot generates 16-digit cards with random CVV; max 3.)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/3,15` (generate 3 cards)\n\nJust send a card or generate line to check.", 
+            true
+        );
+        return res.sendStatus(200);
+    }
+
+    if (text === '/check') {
+        await sendMessage(chatId, 
+            "💳 *Check a card*\n\nCheck a single card. Send one line in this format:\n\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (quantity 15)", 
             true
         );
         return res.sendStatus(200);
@@ -352,7 +360,7 @@ app.post('/', async (req, res) => {
 
     if (text === '/mass') {
         await sendMessage(chatId, 
-            "📦 *Mass Check*\n\n• *Admins:* up to 50 cards per message\n• *Non-admins:* up to 3 cards per message\n\n*Option A – send cards* (one per line):\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Option B – generate cards* (single line):\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\nExample: `424242424242|08|2025/50,15` → 50 cards, order qty 15\n\nUse /stop to cancel.", 
+            "📦 *Mass Check*\n\n• Can check up to 3 cards per message\n\n*Option A – send cards* (one per line):\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Option B – generate cards* (single line):\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\nExample: `424242424242|08|2025/3,15` → 3 cards, order qty 15\n\nUse /stop to cancel.", 
             true
         );
         return res.sendStatus(200);

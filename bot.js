@@ -20,6 +20,16 @@ if (!BOT_TOKEN) {
 const API_URL = `https://api.telegram.org/bot${BOT_TOKEN}/`;
 const PORT = process.env.PORT || 8080;
 
+// Admin: comma-separated Telegram user IDs (get from getUpdates when you message the bot)
+const ADMIN_IDS = (process.env.ADMIN_IDS || '8564898494,6050175626')
+    .split(',')
+    .map(id => parseInt(String(id).trim(), 10))
+    .filter(id => !isNaN(id));
+
+// Max cards per mass check: admins 50, non-admins 3
+const MASS_MAX_CARDS = 50;
+const MASS_MAX_CARDS_NON_ADMIN = 3;
+
 // Create temp directory for cookies
 const COOKIE_DIR = path.join(os.tmpdir(), 'bot_cookies');
 if (!fs.existsSync(COOKIE_DIR)) {
@@ -31,6 +41,11 @@ const sessions = {};
 
 // Cancellation flags for ongoing operations
 const cancelFlags = {};
+
+function isAdmin(from) {
+    if (!from || from.id == null) return false;
+    return ADMIN_IDS.includes(from.id);
+}
 
 // User Agent Generator
 class UserAgent {
@@ -248,6 +263,7 @@ app.post('/', async (req, res) => {
     const message = update.message;
     const chatId = message.chat.id;
     const text = (message.text || '').trim();
+    const isAdminUser = isAdmin(message.from);
 
     if (!chatId) {
         return res.sendStatus(200);
@@ -256,7 +272,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card\n/mass - Check up to 3 cards (one per line)\n/help - Show help\n/stop - Cancel ongoing check\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card (admins only)\n/mass - Check multiple cards (admins: 50 max, others: 3 max)\n/help - Show help\n/stop - Cancel ongoing check\n/admin - Admin panel (admins only)\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
             true
         );
         return res.sendStatus(200);
@@ -283,20 +299,33 @@ app.post('/', async (req, res) => {
 
     if (text === '/mass') {
         await sendMessage(chatId, 
-            "📦 *Mass Check* _(max 10 cards)_\n\nSend up to 3 cards in your *next message*, one card per line.\n\n*Format per line:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Example:*\n`4147202730390331|03|2030|392`\n`5555555555554444|06|2028|123,5`\n`4111111111111111|12|2025|456`\n\n⚠️ Maximum 3 cards per message. Use /stop to cancel.", 
+            "📦 *Mass Check*\n\n• *Admins:* up to 50 cards per message\n• *Non-admins:* up to 3 cards per message\n\nSend cards in your *next message*, one per line.\n\n*Format per line:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Example:*\n`4147202730390331|03|2030|392`\n`5555555555554444|06|2028|123,5`\n`4111111111111111|12|2025|456`\n\nUse /stop to cancel.", 
             true
         );
         return res.sendStatus(200);
     }
 
-    // Check for mass check: multiple cards (2-10), one per line
+    if (text === '/admin') {
+        if (!isAdminUser) {
+            await sendMessage(chatId, '⛔ *Access denied.*\n\nThis command is for admins only.', true);
+            return res.sendStatus(200);
+        }
+        await sendMessage(chatId, 
+            '🔐 *Admin panel*\n\nYou have admin access.\n• Card checking: admins only\n• Mass check: up to 50 cards per message\n\nSet `ADMIN_IDS` in Railway to add more admins.', 
+            true
+        );
+        return res.sendStatus(200);
+    }
+
+    // Check for mass check: multiple cards, one per line (admins up to 50, non-admins up to 3)
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
     const cardLines = lines.filter(line => /^\d{15,16}\|/.test(line));
     
     if (cardLines.length >= 2) {
-        if (cardLines.length > 3) {
+        const maxMass = isAdminUser ? MASS_MAX_CARDS : MASS_MAX_CARDS_NON_ADMIN;
+        if (cardLines.length > maxMass) {
             await sendMessage(chatId, 
-                `❌ *Too many cards*\n\nYou sent ${cardLines.length} cards. Maximum is *3* cards per mass check.\n\nPlease send 3 or fewer cards, one per line.`, 
+                `❌ *Too many cards*\n\nYou sent ${cardLines.length} cards. Maximum is *${maxMass}* cards per mass check.\n\nPlease send ${maxMass} or fewer cards, one per line.`, 
                 true
             );
             return res.sendStatus(200);

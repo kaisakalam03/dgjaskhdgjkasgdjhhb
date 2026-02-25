@@ -90,6 +90,59 @@ function randomString(length) {
     return result;
 }
 
+function randomDigits(length) {
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += Math.floor(Math.random() * 10);
+    }
+    return result;
+}
+
+// Generate cards from format: PARTIAL_NUMBER|MM|YYYY/CARD_COUNT,ORDER_QUANTITY
+// Returns { cardLines } or { error }
+function parseAndGenerateCards(input) {
+    const trimmed = input.trim();
+    if (!/^\d{1,15}\|\d{1,2}\|\d{2,4}\/\d+,\d+$/.test(trimmed)) {
+        return { error: 'Invalid generate format.' };
+    }
+    const [left, right] = trimmed.split('/');
+    const leftParts = left.split('|');
+    const partialNumber = leftParts[0];
+    const mm = leftParts[1];
+    let yyyy = leftParts[2];
+    const rightParts = right.split(',');
+    const cardCount = parseInt(rightParts[0], 10);
+    const orderQty = parseInt(rightParts[1], 10);
+
+    if (partialNumber.length < 1 || partialNumber.length > 15) {
+        return { error: 'Partial number must be 1–15 digits.' };
+    }
+    const mmNum = parseInt(mm, 10);
+    if (mmNum < 1 || mmNum > 12) {
+        return { error: 'Month must be 01–12.' };
+    }
+    if (yyyy.length === 2) {
+        yyyy = '20' + yyyy;
+    } else if (yyyy.length !== 4) {
+        return { error: 'Year must be 2 or 4 digits.' };
+    }
+    if (isNaN(cardCount) || cardCount < 2) {
+        return { error: 'Card count must be at least 2.' };
+    }
+    if (isNaN(orderQty) || orderQty < 1) {
+        return { error: 'Order quantity must be at least 1.' };
+    }
+
+    const digitsToAdd = 16 - partialNumber.length;
+    const cardLines = [];
+    for (let i = 0; i < cardCount; i++) {
+        const cc = partialNumber + randomDigits(digitsToAdd);
+        const cvv = randomDigits(3);
+        cardLines.push(`${cc}|${mm}|${yyyy}|${cvv},${orderQty}`);
+    }
+    return { cardLines };
+}
+
 function extractString(str, start, end) {
     const startIndex = str.indexOf(start);
     if (startIndex === -1) return '';
@@ -272,7 +325,7 @@ app.post('/', async (req, res) => {
     // Handle commands
     if (text === '/start') {
         await sendMessage(chatId, 
-            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card (admins only)\n/mass - Check multiple cards (admins: 50 max, others: 3 max)\n/help - Show help\n/stop - Cancel ongoing check\n/admin - Admin panel (admins only)\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123`\n`4350940005555920|07|2025|123,15` (with quantity)", 
+            "🤖 *Card Checker Bot*\n\n*Commands:*\n/check - Check a card (admins only)\n/mass - Check multiple cards (admins: 50 max, others: 3 max)\n/help - Show help\n/stop - Cancel ongoing check\n/admin - Admin panel (admins only)\n\n💵 *Amount per quantity:*\nEach quantity is equivalent to $10.50\n\n*Formats:*\n• Single/mass: `CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n• Generate: `PARTIAL|MM|YYYY/COUNT,ORDER_QTY` (1–15 digits → 16-digit cards)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/50,15` (generate 50 cards, order qty 15)", 
             true
         );
         return res.sendStatus(200);
@@ -280,7 +333,7 @@ app.post('/', async (req, res) => {
 
     if (text === '/help') {
         await sendMessage(chatId, 
-            "📋 *Help*\n\n*Card Format:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Examples:*\n`4350940005555920|07|2025|123` (quantity: 1)\n`4350940005555920|07|2025|123,15` (quantity: 15)\n`4350940005555920|07|2025|123,30` (quantity: 30)\n\nJust send the card to check!", 
+            "📋 *Help*\n\n*Card format:*\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Generate format:*\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\n(1–15 digit BIN → bot generates 16-digit cards with random CVV; admins max 50, others max 3.)\n\n*Examples:*\n`4350940005555920|07|2025|123,15`\n`424242424242|08|2025/50,15` (generate 50 cards)\n\nJust send a card or generate line to check.", 
             true
         );
         return res.sendStatus(200);
@@ -299,7 +352,7 @@ app.post('/', async (req, res) => {
 
     if (text === '/mass') {
         await sendMessage(chatId, 
-            "📦 *Mass Check*\n\n• *Admins:* up to 50 cards per message\n• *Non-admins:* up to 3 cards per message\n\nSend cards in your *next message*, one per line.\n\n*Format per line:*\n`CCNUMBER|MM|YYYY|CVV` or `CCNUMBER|MM|YYYY|CVV,QUANTITY`\n\n*Example:*\n`4147202730390331|03|2030|392`\n`5555555555554444|06|2028|123,5`\n`4111111111111111|12|2025|456`\n\nUse /stop to cancel.", 
+            "📦 *Mass Check*\n\n• *Admins:* up to 50 cards per message\n• *Non-admins:* up to 3 cards per message\n\n*Option A – send cards* (one per line):\n`CC|MM|YYYY|CVV` or `CC|MM|YYYY|CVV,QTY`\n\n*Option B – generate cards* (single line):\n`PARTIAL|MM|YYYY/COUNT,ORDER_QTY`\nExample: `424242424242|08|2025/50,15` → 50 cards, order qty 15\n\nUse /stop to cancel.", 
             true
         );
         return res.sendStatus(200);
@@ -315,6 +368,31 @@ app.post('/', async (req, res) => {
             true
         );
         return res.sendStatus(200);
+    }
+
+    // Check for generate format: PARTIAL_NUMBER|MM|YYYY/CARD_COUNT,ORDER_QUANTITY (single line)
+    if (/^\d{1,15}\|\d{1,2}\|\d{2,4}\/\d+,\d+$/.test(text.trim())) {
+        const generateResult = parseAndGenerateCards(text);
+        if (generateResult.cardLines) {
+            const maxMass = isAdminUser ? MASS_MAX_CARDS : MASS_MAX_CARDS_NON_ADMIN;
+            if (generateResult.cardLines.length > maxMass) {
+                await sendMessage(chatId, 
+                    `❌ *Generated count exceeds limit*\n\nYou requested ${generateResult.cardLines.length} cards. Your maximum is *${maxMass}* per mass check.\n\nUse a lower count or ask an admin.`, 
+                    true
+                );
+                return res.sendStatus(200);
+            }
+            await sendMessage(chatId, `📦 *Generating ${generateResult.cardLines.length} cards…*\n\nRunning mass check. Use /stop to cancel.`, true);
+            processMassCards(chatId, generateResult.cardLines);
+            return res.sendStatus(200);
+        }
+        if (generateResult.error) {
+            await sendMessage(chatId, 
+                `❌ *Generate format error*\n\n${generateResult.error}\n\n*Format:* \`PARTIAL|MM|YYYY/COUNT,ORDER_QTY\`\n*Example:* \`424242424242|08|2025/50,15\`\n(1–15 digits, then /count,orderQty; admins max 50, others max 3.)`, 
+                true
+            );
+            return res.sendStatus(200);
+        }
     }
 
     // Check for mass check: multiple cards, one per line (admins up to 50, non-admins up to 3)
